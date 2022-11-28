@@ -483,7 +483,7 @@ Get-AutopilotProfile
     Write-Verbose "GET $uri"
 
     try {
-        $response = Invoke-MGGraphRequest -Uri $uri -HttpMethod Get -OutputType PSObject
+        $response = Invoke-MGGraphRequest -Uri $uri -Method Get -OutputType PSObject
         if ($id) {
             $response
         }
