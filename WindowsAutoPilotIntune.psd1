@@ -9,28 +9,28 @@
 @{
 
 # Script module or binary module file associated with this manifest.
-RootModule = 'WindowsAutoPilotIntune'
+RootModule = 'WindowsAutoPilotIntune'
 
 # Version number of this module.
-ModuleVersion = '5.1'
+ModuleVersion = '5.1'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
 
 # ID used to uniquely identify this module
-GUID = '7952c22a-a31f-453a-8579-f32ed374126c'
+GUID = '7952c22a-a31f-453a-8579-f32ed374126c'
 
 # Author of this module
-Author = 'Michael Niehaus'
+Author = 'Michael Niehaus'
 
 # Company or vendor of this module
-CompanyName = 'Microsoft'
+CompanyName = 'Microsoft'
 
 # Copyright statement for this module
-Copyright = '(c) 2020 Microsoft. All rights reserved.'
+Copyright = '(c) 2020 Microsoft. All rights reserved.'
 
 # Description of the functionality provided by this module
-Description = 'Sample module to manage AutoPilot devices using the Intune Graph API'
+Description = 'Sample module to manage AutoPilot devices using the Intune Graph API'
 
 # Minimum version of the Windows PowerShell engine required by this module
 # PowerShellVersion = ''
@@ -51,7 +51,7 @@ Description = 'Sample module to manage AutoPilot devices using the Intune Grap
 # ProcessorArchitecture = ''
 
 # Modules that must be imported into the global environment prior to importing this module
-RequiredModules = @('Microsoft.Graph.Groups','Microsoft.Graph.Authentication', 'Microsoft.Graph.Groups')
+RequiredModules = @('Microsoft.Graph.Groups','Microsoft.Graph.Authentication', 'Microsoft.Graph.Groups')
 
 # Assemblies that must be loaded prior to importing this module
 # RequiredAssemblies = @()
@@ -69,16 +69,16 @@ RequiredModules = @('Microsoft.Graph.Groups','Microsoft.Graph.Authentication',
 # NestedModules = @()
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-FunctionsToExport = '*'
+FunctionsToExport = '*'
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
-CmdletsToExport = '*'
+CmdletsToExport = '*'
 
 # Variables to export from this module
-VariablesToExport = '*'
+VariablesToExport = '*'
 
 # Aliases to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no aliases to export.
-AliasesToExport = @()
+AliasesToExport = @()
 
 # DSC resources to export from this module
 # DscResourcesToExport = @()
@@ -90,24 +90,24 @@ AliasesToExport = @()
 # FileList = @()
 
 # Private data to pass to the module specified in RootModule/ModuleToProcess. This may also contain a PSData hashtable with additional module metadata used by PowerShell.
-PrivateData = @{
+PrivateData = @{
 
-    PSData = @{
+    PSData = @{
 
-        # Tags applied to this module. These help with module discovery in online galleries.
-        # Tags = @()
+        # Tags applied to this module. These help with module discovery in online galleries.
+        # Tags = @()
 
-        # A URL to the license for this module.
-        # LicenseUri = ''
+        # A URL to the license for this module.
+        # LicenseUri = ''
 
-        # A URL to the main website for this project.
-        # ProjectUri = ''
+        # A URL to the main website for this project.
+        # ProjectUri = ''
 
-        # A URL to an icon representing this module.
-        # IconUri = ''
+        # A URL to an icon representing this module.
+        # IconUri = ''
 
-        # ReleaseNotes of this module
-        ReleaseNotes = @'
+        # ReleaseNotes of this module
+        ReleaseNotes = @'
 Version 5.1: Transitioned to Microsoft Graph SDK
 Version 4.8: Added Connect-MSGraphApp wrapper to simplify app-based authentication.
 Version 4.7: Fixed a bug.
@@ -138,9 +138,9 @@ Version 2.0: Added cmdlet help (and fixed the mistake of using 1.41 as a verion,
 Version 1.4: Added functions to delete a device, to list Autopilot profiles, and to convert Autopilot profiles into JSON.
 Version 1.3: Fixed module manifest to export functions
 '@
-    } # End of PSData hashtable
+    } # End of PSData hashtable
 
-} # End of PrivateData hashtable
+} # End of PrivateData hashtable
 
 # HelpInfo URI of this module
 # HelpInfoURI = ''
