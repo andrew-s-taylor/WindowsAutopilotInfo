@@ -303,23 +303,23 @@ End {
             }
         }
         if ($Partner) {
-            $computers | Select "Device Serial Number", "Windows Product ID", "Hardware Hash", "Manufacturer name", "Device model" | ConvertTo-CSV -NoTypeInformation | % { $_ -replace '"', '' } | Out-File $OutputFile
+            $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash", "Manufacturer name", "Device model" | ConvertTo-CSV -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
         }
         elseif ($AssignedUser -ne "") {
-            $computers | Select "Device Serial Number", "Windows Product ID", "Hardware Hash", "Group Tag", "Assigned User" | ConvertTo-CSV -NoTypeInformation | % { $_ -replace '"', '' } | Out-File $OutputFile
+            $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash", "Group Tag", "Assigned User" | ConvertTo-CSV -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
         }
         elseif ($GroupTag -ne "") {
-            $computers | Select "Device Serial Number", "Windows Product ID", "Hardware Hash", "Group Tag" | ConvertTo-CSV -NoTypeInformation | % { $_ -replace '"', '' } | Out-File $OutputFile
+            $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash", "Group Tag" | ConvertTo-CSV -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
         }
         else {
-            $computers | Select "Device Serial Number", "Windows Product ID", "Hardware Hash" | ConvertTo-CSV -NoTypeInformation | % { $_ -replace '"', '' } | Out-File $OutputFile
+            $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash" | ConvertTo-CSV -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
         }
     }
     if ($Online) {
         # Add the devices
         $importStart = Get-Date
         $imported = @()
-        $computers | % {
+        $computers | ForEach-Object {
             $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
         }
 
@@ -328,7 +328,7 @@ End {
         while ($processingCount -gt 0) {
             $current = @()
             $processingCount = 0
-            $imported | % {
+            $imported | ForEach-Object {
                 $device = Get-AutopilotImportedDevice -id $_.id
                 if ($device.state.deviceImportStatus -eq "unknown") {
                     $processingCount = $processingCount + 1
@@ -344,7 +344,7 @@ End {
         $importDuration = (Get-Date) - $importStart
         $importSeconds = [Math]::Ceiling($importDuration.TotalSeconds)
         $successCount = 0
-        $current | % {
+        $current | ForEach-Object {
             Write-Host "$($device.serialNumber): $($device.state.deviceImportStatus) $($device.state.deviceErrorCode) $($device.state.deviceErrorName)"
             if ($device.state.deviceImportStatus -eq "complete") {
                 $successCount = $successCount + 1
@@ -358,7 +358,7 @@ End {
         while ($processingCount -gt 0) {
             $autopilotDevices = @()
             $processingCount = 0
-            $current | % {
+            $current | ForEach-Object {
                 if ($device.state.deviceImportStatus -eq "complete") {
                     $device = Get-AutopilotDevice -id $_.state.deviceRegistrationId
                     if (-not $device) {
@@ -381,7 +381,7 @@ End {
         if ($AddToGroup) {
             $aadGroup = Get-MgGroup -Filter "DisplayName eq '$AddToGroup'"
             if ($aadGroup) {
-                $autopilotDevices | % {
+                $autopilotDevices | ForEach-Object {
                     $aadDevice = Get-MgDevice -DeviceID $_.azureActiveDirectoryDeviceId
                     if ($aadDevice) {
                         Write-Host "Adding device $($_.serialNumber) to group $AddToGroup"
@@ -400,7 +400,7 @@ End {
 
         # Assign the computer name
         if ($AssignedComputerName -ne "") {
-            $autopilotDevices | % {
+            $autopilotDevices | ForEach-Object {
                 Set-AutopilotDevice -Id $_.Id -displayName $AssignedComputerName
             }
         }
@@ -411,7 +411,7 @@ End {
             $processingCount = 1
             while ($processingCount -gt 0) {
                 $processingCount = 0
-                $autopilotDevices | % {
+                $autopilotDevices | ForEach-Object {
                     $device = Get-AutopilotDevice -id $_.id -Expand
                     if (-not ($device.deploymentProfileAssignmentStatus.StartsWith("assigned"))) {
                         $processingCount = $processingCount + 1
