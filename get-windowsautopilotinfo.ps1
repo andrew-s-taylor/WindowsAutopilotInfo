@@ -160,6 +160,12 @@ Begin {
                 Write-Host "Installing module MS Graph Groups"
                 Install-Module microsoft.graph.groups -Force
             }
+            $module2 = Import-Module Microsoft.Graph.Identity.DirectoryManagement -PassThru -ErrorAction Ignore
+            if (-not $module) {
+                Write-Host "Installing module MS Graph Groups"
+                Install-Module Microsoft.Graph.Identity.DirectoryManagement -Force
+            }
+
         }
 
 ##Add functions from module
