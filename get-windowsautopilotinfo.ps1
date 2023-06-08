@@ -2059,13 +2059,15 @@ End {
             $aadGroup = Get-MgGroup -Filter "DisplayName eq '$AddToGroup'"
             if ($aadGroup) {
                 $autopilotDevices | ForEach-Object {
-                    $aadDevice = Get-MgDevice -DeviceID $_.azureActiveDirectoryDeviceId
+                    $uri = "https://graph.microsoft.com/beta/devices?`$filter=deviceId eq '" + $_.azureActiveDirectoryDeviceId + "'"
+
+                    $aadDevice = (Invoke-MgGraphRequest -Uri $uri -Method GET -OutputType PSObject -SkipHttpErrorCheck).value
                     if ($aadDevice) {
-                        Write-Host "Adding device $($_.serialNumber) to group $AddToGroup"
-                        New-MgGroupMember -GroupId $aadGroup.ObjectId -DirectoryObjectId $aadDevice.ObjectId
+                        Write-Host "Adding device $($aadDevice.displayName) to group $AddToGroup"
+                        New-MgGroupMember -GroupId $aadGroup.Id -DirectoryObjectId $aadDevice.id
                     }
                     else {
-                        Write-Error "Unable to find Azure AD device with ID $($_.azureActiveDirectoryDeviceId)"
+                        Write-Error "Unable to find Azure AD device with ID $($aadDevice.deviceId)"
                     }
                 }
                 Write-Host "Added devices to group '$AddToGroup' ($($aadGroup.ObjectId))"
