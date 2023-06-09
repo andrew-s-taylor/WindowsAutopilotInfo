@@ -1,6 +1,6 @@
 <#PSScriptInfo
  
-.VERSION 3.6
+.VERSION 3.7
  
 .GUID ebf446a3-3362-4774-83c0-b7299410b63f
  
@@ -47,6 +47,7 @@ Version 3.3: Added more logging and error handling for group membership.
 Version 3.4: Added logic to verify that devices were added successfully. Fixed a bug that could cause all Autopilot devices to be added to the specified AAD group.
 Version 3.5: Added logic to display the serial number of the gathered device.
 Version 3.6: Converted online commands to use MGGraph Module
+Version 3.7: Added support for serial with spaces
 #>
 
 <#
@@ -283,7 +284,15 @@ Get-AutopilotDevice
         }
         elseif ($serial) {
             $encoded = [uri]::EscapeDataString($serial)
+            ##Check if serial contains a space
+            $serialelements = $serial.Split(" ")
+            if ($serialelements.Count -gt 1) {
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$filter=contains(serialNumber,'$($serialelements[0])')"
+                $serialhasspaces = 1
+            }
+            else {
             $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$filter=contains(serialNumber,'$encoded')"
+            }
         }
         else {
             $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)"
@@ -303,7 +312,12 @@ Get-AutopilotDevice
                 while ($null -ne $devicesNextLink) {
                     $devicesResponse = (Invoke-MgGraphRequest -Uri $devicesNextLink -Method Get -OutputType PSObject)
                     $devicesNextLink = $devicesResponse."@odata.nextLink"
-                    $devices += $devicesResponse.value
+                    if ($serialhasspaces -eq 1) {
+                        $devices += $devicesResponse.value | Where-Object {$_.serialNumber -eq "$($serial)"}
+                    }
+                    else {
+                        $devices += $devicesResponse.value
+                    }
                 }
     
                 if ($expand) {
