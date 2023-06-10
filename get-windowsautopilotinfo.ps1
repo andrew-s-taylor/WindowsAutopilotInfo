@@ -1,10 +1,10 @@
 <#PSScriptInfo
  
-.VERSION 3.7
+.VERSION 3.8
  
 .GUID ebf446a3-3362-4774-83c0-b7299410b63f
  
-.AUTHOR Michael Niehaus
+.AUTHOR Michael Niehaus amended by Andrew Taylor
  
 .COMPANYNAME Microsoft
  
@@ -48,6 +48,7 @@ Version 3.4: Added logic to verify that devices were added successfully. Fixed a
 Version 3.5: Added logic to display the serial number of the gathered device.
 Version 3.6: Converted online commands to use MGGraph Module
 Version 3.7: Added support for serial with spaces
+Version 3.8: Added serial to Get-AutopilotImportedDevice
 #>
 
 <#
@@ -306,7 +307,11 @@ Get-AutopilotDevice
                 $response
             }
             else {
-                $devices = $response.value
+                if ($serialhasspaces -eq 1) {  
+                    $devices = $response.value | Where-Object {$_.serialNumber -eq "$($serial)"}
+               } else {
+                    $devices = $response.value 
+               }
                 $devicesNextLink = $response."@odata.nextLink"
     
                 while ($null -ne $devicesNextLink) {
@@ -479,13 +484,18 @@ Get-AutopilotImportedDevice
     [cmdletbinding()]
     param
     (
-        [Parameter(Mandatory = $false)] $id = $null
+        [Parameter(Mandatory = $false)] $id = $null,
+        [Parameter(Mandatory = $false)] $serial
     )
 
     # Defining Variables
     $graphApiVersion = "beta"
     if ($id) {
         $uri = "https://graph.microsoft.com/$graphApiVersion/deviceManagement/importedWindowsAutopilotDeviceIdentities/$id"
+    } 
+    elseif ($serial) {
+        # handles also serial numbers with spaces    
+        $uri = "https://graph.microsoft.com/$graphApiVersion/deviceManagement/importedWindowsAutopilotDeviceIdentities/?`$filter=contains(serialNumber,'$serial')"
     }
     else {
         $uri = "https://graph.microsoft.com/$graphApiVersion/deviceManagement/importedWindowsAutopilotDeviceIdentities"
