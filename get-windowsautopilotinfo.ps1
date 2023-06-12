@@ -1892,10 +1892,10 @@ Get-AutopilotEvent
             Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
         }
         else {
-            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.Read.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All
+            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All
             Write-Host "Connected to Intune tenant $($graph.TenantId)"
             if ($AddToGroup) {
-                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.Read.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All
+                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All
                 Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
             }
         }
