@@ -1,6 +1,6 @@
 <#PSScriptInfo
  
-.VERSION 3.9
+.VERSION 3.10
  
 .GUID ebf446a3-3362-4774-83c0-b7299410b63f
  
@@ -50,6 +50,7 @@ Version 3.6: Converted online commands to use MGGraph Module
 Version 3.7: Added support for serial with spaces
 Version 3.8: Added serial to Get-AutopilotImportedDevice
 Version 3.9: Updated Scopes
+Version 3.10: Changed orderIdentifier to groupTag
 #>
 
 <#
@@ -575,7 +576,7 @@ Function Add-AutopilotImportedDevice() {
     $json = @"
 {
     "@odata.type": "#microsoft.graph.importedWindowsAutopilotDeviceIdentity",
-    "orderIdentifier": "$groupTag",
+    "groupTag": "$groupTag",
     "serialNumber": "$serialNumber",
     "productKey": "",
     "hardwareIdentifier": "$hardwareIdentifier",
