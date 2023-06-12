@@ -1,6 +1,6 @@
 <#PSScriptInfo
  
-.VERSION 3.8
+.VERSION 3.9
  
 .GUID ebf446a3-3362-4774-83c0-b7299410b63f
  
@@ -49,6 +49,7 @@ Version 3.5: Added logic to display the serial number of the gathered device.
 Version 3.6: Converted online commands to use MGGraph Module
 Version 3.7: Added support for serial with spaces
 Version 3.8: Added serial to Get-AutopilotImportedDevice
+Version 3.9: Updated Scopes
 #>
 
 <#
@@ -1890,10 +1891,10 @@ Get-AutopilotEvent
             Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
         }
         else {
-            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.Read.All
+            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.Read.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All
             Write-Host "Connected to Intune tenant $($graph.TenantId)"
             if ($AddToGroup) {
-                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.Read.All
+                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.Read.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All
                 Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
             }
         }
