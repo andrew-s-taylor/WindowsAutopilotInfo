@@ -51,7 +51,7 @@ Description = 'Sample module to manage AutoPilot devices using the Intune Graph 
 # ProcessorArchitecture = ''
 
 # Modules that must be imported into the global environment prior to importing this module
-RequiredModules = @('Microsoft.Graph.Groups','Microsoft.Graph.Authentication', 'Microsoft.Graph.Groups')
+RequiredModules = @('Microsoft.Graph.Groups','Microsoft.Graph.Authentication')
 
 # Assemblies that must be loaded prior to importing this module
 # RequiredAssemblies = @()
