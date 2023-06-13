@@ -92,11 +92,38 @@ Get-AutopilotDevice
     (
         [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $True)] $id,
         [Parameter(Mandatory = $false)] $serial,
-        [Parameter(Mandatory = $false)] [Switch]$expand = $false
+        [Parameter(Mandatory = $false)] [Switch]$expand = $false,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
 
     Process {
+        if ($AppId -ne "") {
+            $body = @{
+                grant_type    = "client_credentials";
+                client_id     = $AppId;
+                client_secret = $AppSecret;
+                scope         = "https://graph.microsoft.com/.default";
+            }
+     
+            $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+            $accessToken = $response.access_token
+     
+            $accessToken
 
+            Select-MgProfile -Name Beta
+            $graph = Connect-MgGraph  -AccessToken $accessToken 
+            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+        }
+        else {
+            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Intune tenant $($graph.TenantId)"
+            if ($AddToGroup) {
+                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+                Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+            }
+        }
         # Defining Variables
         $graphApiVersion = "beta"
         $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"
@@ -200,11 +227,38 @@ Set-AutopilotDevice -id $id -userPrincipalName $userPrincipalName -addressableUs
         [Parameter(ParameterSetName = "Prop")] $userPrincipalName = $null,
         [Parameter(ParameterSetName = "Prop")] $addressableUserName = $null,
         [Parameter(ParameterSetName = "Prop")][Alias("ComputerName", "CN", "MachineName")] $displayName = $null,
-        [Parameter(ParameterSetName = "Prop")] $groupTag = $null
+        [Parameter(ParameterSetName = "Prop")] $groupTag = $null,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
 
     Process {
-    
+        if ($AppId -ne "") {
+            $body = @{
+                grant_type    = "client_credentials";
+                client_id     = $AppId;
+                client_secret = $AppSecret;
+                scope         = "https://graph.microsoft.com/.default";
+            }
+     
+            $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+            $accessToken = $response.access_token
+     
+            $accessToken
+
+            Select-MgProfile -Name Beta
+            $graph = Connect-MgGraph  -AccessToken $accessToken 
+            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+        }
+        else {
+            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Intune tenant $($graph.TenantId)"
+            if ($AddToGroup) {
+                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+                Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+            }
+        }
         # Defining Variables
         $graphApiVersion = "beta"
         $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"
@@ -262,7 +316,10 @@ Get-AutopilotDevice | Remove-AutopilotDevice
     param
     (
         [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id,
-        [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $True)] $serialNumber
+        [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $True)] $serialNumber,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
 
     Begin {
@@ -270,7 +327,31 @@ Get-AutopilotDevice | Remove-AutopilotDevice
     }
 
     Process {
+        if ($AppId -ne "") {
+            $body = @{
+                grant_type    = "client_credentials";
+                client_id     = $AppId;
+                client_secret = $AppSecret;
+                scope         = "https://graph.microsoft.com/.default";
+            }
+     
+            $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+            $accessToken = $response.access_token
+     
+            $accessToken
 
+            Select-MgProfile -Name Beta
+            $graph = Connect-MgGraph  -AccessToken $accessToken 
+            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+        }
+        else {
+            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Intune tenant $($graph.TenantId)"
+            if ($AddToGroup) {
+                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+                Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+            }
+        }
         # Defining Variables
         $graphApiVersion = "beta"
         $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"    
@@ -309,8 +390,37 @@ Get-AutopilotImportedDevice
     param
     (
         [Parameter(Mandatory = $false)] $id = $null,
-        [Parameter(Mandatory = $false)] $serial
+        [Parameter(Mandatory = $false)] $serial,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
+
+    if ($AppId -ne "") {
+        $body = @{
+            grant_type    = "client_credentials";
+            client_id     = $AppId;
+            client_secret = $AppSecret;
+            scope         = "https://graph.microsoft.com/.default";
+        }
+ 
+        $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+        $accessToken = $response.access_token
+ 
+        $accessToken
+
+        Select-MgProfile -Name Beta
+        $graph = Connect-MgGraph  -AccessToken $accessToken 
+        Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+    }
+    else {
+        $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+        Write-Host "Connected to Intune tenant $($graph.TenantId)"
+        if ($AddToGroup) {
+            $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+        }
+    }
 
     # Defining Variables
     $graphApiVersion = "beta"
@@ -388,9 +498,36 @@ Function Add-AutopilotImportedDevice() {
         [Parameter(Mandatory = $true)] $serialNumber,
         [Parameter(Mandatory = $true)] $hardwareIdentifier,
         [Parameter(Mandatory = $false)] [Alias("orderIdentifier")] $groupTag = "",
-        [Parameter(ParameterSetName = "Prop2")][Alias("UPN")] $assignedUser = ""
+        [Parameter(ParameterSetName = "Prop2")][Alias("UPN")] $assignedUser = "",
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
+    if ($AppId -ne "") {
+        $body = @{
+            grant_type    = "client_credentials";
+            client_id     = $AppId;
+            client_secret = $AppSecret;
+            scope         = "https://graph.microsoft.com/.default";
+        }
+ 
+        $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+        $accessToken = $response.access_token
+ 
+        $accessToken
 
+        Select-MgProfile -Name Beta
+        $graph = Connect-MgGraph  -AccessToken $accessToken 
+        Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+    }
+    else {
+        $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+        Write-Host "Connected to Intune tenant $($graph.TenantId)"
+        if ($AddToGroup) {
+            $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+        }
+    }
     # Defining Variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/importedWindowsAutopilotDeviceIdentities"
@@ -445,11 +582,38 @@ Remove-AutopilotImportedDevice -id $id
     [cmdletbinding()]
     param
     (
-        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id
+        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
 
     Process {
+        if ($AppId -ne "") {
+            $body = @{
+                grant_type    = "client_credentials";
+                client_id     = $AppId;
+                client_secret = $AppSecret;
+                scope         = "https://graph.microsoft.com/.default";
+            }
+     
+            $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+            $accessToken = $response.access_token
+     
+            $accessToken
 
+            Select-MgProfile -Name Beta
+            $graph = Connect-MgGraph  -AccessToken $accessToken 
+            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+        }
+        else {
+            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Intune tenant $($graph.TenantId)"
+            if ($AddToGroup) {
+                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+                Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+            }
+        }
         # Defining Variables
         $graphApiVersion = "beta"
         $Resource = "deviceManagement/importedWindowsAutopilotDeviceIdentities"    
@@ -488,9 +652,36 @@ Get-AutopilotProfile
     [cmdletbinding()]
     param
     (
-        [Parameter(Mandatory = $false)] $id
+        [Parameter(Mandatory = $false)] $id,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
+    if ($AppId -ne "") {
+        $body = @{
+            grant_type    = "client_credentials";
+            client_id     = $AppId;
+            client_secret = $AppSecret;
+            scope         = "https://graph.microsoft.com/.default";
+        }
+ 
+        $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+        $accessToken = $response.access_token
+ 
+        $accessToken
 
+        Select-MgProfile -Name Beta
+        $graph = Connect-MgGraph  -AccessToken $accessToken 
+        Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+    }
+    else {
+        $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+        Write-Host "Connected to Intune tenant $($graph.TenantId)"
+        if ($AddToGroup) {
+            $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+        }
+    }
     # Defining Variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
@@ -550,11 +741,38 @@ Get-AutopilotProfileAssignedDevices -id $id
     [cmdletbinding()]
     param
     (
-        [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $True)] $id
+        [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $True)] $id,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
 
     Process {
+        if ($AppId -ne "") {
+            $body = @{
+                grant_type    = "client_credentials";
+                client_id     = $AppId;
+                client_secret = $AppSecret;
+                scope         = "https://graph.microsoft.com/.default";
+            }
+     
+            $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+            $accessToken = $response.access_token
+     
+            $accessToken
 
+            Select-MgProfile -Name Beta
+            $graph = Connect-MgGraph  -AccessToken $accessToken 
+            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+        }
+        else {
+            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Intune tenant $($graph.TenantId)"
+            if ($AddToGroup) {
+                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+                Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+            }
+        }
         # Defining Variables
         $graphApiVersion = "beta"
         $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
@@ -595,7 +813,10 @@ Get-AutopilotProfile | ConvertTo-AutopilotConfigurationJSON
     param
     (
         [Parameter(Mandatory = $true, ValueFromPipeline = $True)]
-        [Object] $profile
+        [Object] $profile,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
 
     Begin {
@@ -610,7 +831,31 @@ Get-AutopilotProfile | ConvertTo-AutopilotConfigurationJSON
     }
 
     Process {
+        if ($AppId -ne "") {
+            $body = @{
+                grant_type    = "client_credentials";
+                client_id     = $AppId;
+                client_secret = $AppSecret;
+                scope         = "https://graph.microsoft.com/.default";
+            }
+     
+            $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+            $accessToken = $response.access_token
+     
+            $accessToken
 
+            Select-MgProfile -Name Beta
+            $graph = Connect-MgGraph  -AccessToken $accessToken 
+            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+        }
+        else {
+            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Intune tenant $($graph.TenantId)"
+            if ($AddToGroup) {
+                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+                Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+            }
+        }
         $oobeSettings = $profile.outOfBoxExperienceSettings
 
         # Build up properties
@@ -772,7 +1017,10 @@ Set-AutopilotProfile -ID <guid> -Language "en-us" -displayname "My testing profi
         [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_HideEULA,
         [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_hidePrivacySettings,
         [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_HideChangeAccountOpts,
-        [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_SkipConnectivityCheck
+        [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_SkipConnectivityCheck,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
 
     # Get the current values
@@ -837,7 +1085,31 @@ Set-AutopilotProfile -ID <guid> -Language "en-us" -displayname "My testing profi
     $current.PSObject.Properties.Remove("@odata.context")
     $current.PSObject.Properties.Remove("id")
     $current.PSObject.Properties.Remove("roleScopeTagIds")
+    if ($AppId -ne "") {
+        $body = @{
+            grant_type    = "client_credentials";
+            client_id     = $AppId;
+            client_secret = $AppSecret;
+            scope         = "https://graph.microsoft.com/.default";
+        }
+ 
+        $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+        $accessToken = $response.access_token
+ 
+        $accessToken
 
+        Select-MgProfile -Name Beta
+        $graph = Connect-MgGraph  -AccessToken $accessToken 
+        Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+    }
+    else {
+        $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+        Write-Host "Connected to Intune tenant $($graph.TenantId)"
+        if ($AddToGroup) {
+            $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+        }
+    }
     # Defining Variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
@@ -925,6 +1197,9 @@ New-AutopilotProfile -mode UserDrivenAAD -displayName "My testing profile" -Desc
     (
         [Parameter(Mandatory = $true)][string] $displayName,
         [Parameter(Mandatory = $true)][ValidateSet('UserDrivenAAD', 'UserDrivenAD', 'SelfDeployingAAD')][string] $mode, 
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret,
         [string] $description,
         [Switch] $ConvertDeviceToAutopilot,
         [string] $OOBE_language,
@@ -955,7 +1230,31 @@ New-AutopilotProfile -mode UserDrivenAAD -displayName "My testing profile" -Desc
     if ($OOBE_EnableWhiteGlove) {        
         $OOBE_HideChangeAccountOpts = $True
     }        
-        
+    if ($AppId -ne "") {
+        $body = @{
+            grant_type    = "client_credentials";
+            client_id     = $AppId;
+            client_secret = $AppSecret;
+            scope         = "https://graph.microsoft.com/.default";
+        }
+ 
+        $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+        $accessToken = $response.access_token
+ 
+        $accessToken
+
+        Select-MgProfile -Name Beta
+        $graph = Connect-MgGraph  -AccessToken $accessToken 
+        Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+    }
+    else {
+        $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+        Write-Host "Connected to Intune tenant $($graph.TenantId)"
+        if ($AddToGroup) {
+            $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+        }
+    }
     # Defining Variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
@@ -1033,10 +1332,38 @@ Remove-AutopilotProfile -id $id
     [cmdletbinding()]
     param
     (
-        [Parameter(Mandatory = $True, ValueFromPipelineByPropertyName = $True)] $id
+        [Parameter(Mandatory = $True, ValueFromPipelineByPropertyName = $True)] $id,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
 
     Process {
+        if ($AppId -ne "") {
+            $body = @{
+                grant_type    = "client_credentials";
+                client_id     = $AppId;
+                client_secret = $AppSecret;
+                scope         = "https://graph.microsoft.com/.default";
+            }
+     
+            $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+            $accessToken = $response.access_token
+     
+            $accessToken
+
+            Select-MgProfile -Name Beta
+            $graph = Connect-MgGraph  -AccessToken $accessToken 
+            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+        }
+        else {
+            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Intune tenant $($graph.TenantId)"
+            if ($AddToGroup) {
+                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+                Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+            }
+        }
         # Defining Variables
         $graphApiVersion = "beta"
         $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
@@ -1069,11 +1396,38 @@ Get-AutopilotProfileAssignments -id $id
     [cmdletbinding()]
     param
     (
-        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id
+        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
 
     Process {
+        if ($AppId -ne "") {
+            $body = @{
+                grant_type    = "client_credentials";
+                client_id     = $AppId;
+                client_secret = $AppSecret;
+                scope         = "https://graph.microsoft.com/.default";
+            }
+     
+            $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+            $accessToken = $response.access_token
+     
+            $accessToken
 
+            Select-MgProfile -Name Beta
+            $graph = Connect-MgGraph  -AccessToken $accessToken 
+            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+        }
+        else {
+            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Intune tenant $($graph.TenantId)"
+            if ($AddToGroup) {
+                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+                Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+            }
+        }
         # Defining Variables
         $graphApiVersion = "beta"
         $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
@@ -1120,8 +1474,36 @@ Remove-AutopilotProfileAssignments -id $id
     param
     (
         [Parameter(Mandatory = $true)]$id,
-        [Parameter(Mandatory = $true)]$groupid
+        [Parameter(Mandatory = $true)]$groupid,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
+    if ($AppId -ne "") {
+        $body = @{
+            grant_type    = "client_credentials";
+            client_id     = $AppId;
+            client_secret = $AppSecret;
+            scope         = "https://graph.microsoft.com/.default";
+        }
+ 
+        $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+        $accessToken = $response.access_token
+ 
+        $accessToken
+
+        Select-MgProfile -Name Beta
+        $graph = Connect-MgGraph  -AccessToken $accessToken 
+        Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+    }
+    else {
+        $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+        Write-Host "Connected to Intune tenant $($graph.TenantId)"
+        if ($AddToGroup) {
+            $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+        }
+    }
     # Defining Variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
@@ -1160,10 +1542,37 @@ Set-AutopilotProfileAssignedGroup -id $id -groupid $groupid
     param
     (
         [Parameter(Mandatory = $true)]$id,
-        [Parameter(Mandatory = $true)]$groupid
+        [Parameter(Mandatory = $true)]$groupid,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
     $full_assignment_id = $id + "_" + $groupid + "_0"  
-  
+    if ($AppId -ne "") {
+        $body = @{
+            grant_type    = "client_credentials";
+            client_id     = $AppId;
+            client_secret = $AppSecret;
+            scope         = "https://graph.microsoft.com/.default";
+        }
+ 
+        $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+        $accessToken = $response.access_token
+ 
+        $accessToken
+
+        Select-MgProfile -Name Beta
+        $graph = Connect-MgGraph  -AccessToken $accessToken 
+        Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+    }
+    else {
+        $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+        Write-Host "Connected to Intune tenant $($graph.TenantId)"
+        if ($AddToGroup) {
+            $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+        }
+    }
     # Defining Variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"        
@@ -1206,9 +1615,36 @@ Get-EnrollmentStatusPage
     [cmdletbinding()]
     param
     (
-        [Parameter()] $id
+        [Parameter()] $id,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
+    if ($AppId -ne "") {
+        $body = @{
+            grant_type    = "client_credentials";
+            client_id     = $AppId;
+            client_secret = $AppSecret;
+            scope         = "https://graph.microsoft.com/.default";
+        }
+ 
+        $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+        $accessToken = $response.access_token
+ 
+        $accessToken
 
+        Select-MgProfile -Name Beta
+        $graph = Connect-MgGraph  -AccessToken $accessToken 
+        Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+    }
+    else {
+        $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+        Write-Host "Connected to Intune tenant $($graph.TenantId)"
+        if ($AddToGroup) {
+            $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+        }
+    }
     # Defining Variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/deviceEnrollmentConfigurations"
@@ -1278,9 +1714,36 @@ Add-EnrollmentStatusPage -Message "Oops an error occured, please contact your su
         [bool]$AllowUseOnFailure,
         [bool]$AllowResetOnError,    
         [bool]$BlockDeviceUntilComplete,                
-        [Int]$TimeoutInMinutes        
+        [Int]$TimeoutInMinutes,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret        
     )
+    if ($AppId -ne "") {
+        $body = @{
+            grant_type    = "client_credentials";
+            client_id     = $AppId;
+            client_secret = $AppSecret;
+            scope         = "https://graph.microsoft.com/.default";
+        }
+ 
+        $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+        $accessToken = $response.access_token
+ 
+        $accessToken
 
+        Select-MgProfile -Name Beta
+        $graph = Connect-MgGraph  -AccessToken $accessToken 
+        Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+    }
+    else {
+        $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+        Write-Host "Connected to Intune tenant $($graph.TenantId)"
+        if ($AddToGroup) {
+            $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+        }
+    }
     If ($HideProgress -eq $False) {
         $blockDeviceSetupRetryByUser = $true
     }
@@ -1371,11 +1834,38 @@ Set-EnrollmentStatusPage -id $id -Message "Oops an error occured, please contact
         [bool]$AllowResetOnError,    
         [bool]$AllowUseOnError,    
         [bool]$BlockDeviceUntilComplete,                
-        [Int]$TimeoutInMinutes        
+        [Int]$TimeoutInMinutes,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret        
     )
 
     Process {
+        if ($AppId -ne "") {
+            $body = @{
+                grant_type    = "client_credentials";
+                client_id     = $AppId;
+                client_secret = $AppSecret;
+                scope         = "https://graph.microsoft.com/.default";
+            }
+     
+            $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+            $accessToken = $response.access_token
+     
+            $accessToken
 
+            Select-MgProfile -Name Beta
+            $graph = Connect-MgGraph  -AccessToken $accessToken 
+            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+        }
+        else {
+            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Intune tenant $($graph.TenantId)"
+            if ($AddToGroup) {
+                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+                Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+            }
+        }
         # LIST EXISTING VALUES FOR THE SELECTING STAUS PAGE
         # Default profile values
         $EnrollmentPage_Values = Get-EnrollmentStatusPage -ID $id
@@ -1473,11 +1963,38 @@ Remove-EnrollmentStatusPage -id $id
     [cmdletbinding()]
     param
     (
-        [Parameter(Mandatory = $True, ValueFromPipelineByPropertyName = $True)] $id
+        [Parameter(Mandatory = $True, ValueFromPipelineByPropertyName = $True)] $id,
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
 
     Process {
+        if ($AppId -ne "") {
+            $body = @{
+                grant_type    = "client_credentials";
+                client_id     = $AppId;
+                client_secret = $AppSecret;
+                scope         = "https://graph.microsoft.com/.default";
+            }
+     
+            $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+            $accessToken = $response.access_token
+     
+            $accessToken
 
+            Select-MgProfile -Name Beta
+            $graph = Connect-MgGraph  -AccessToken $accessToken 
+            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+        }
+        else {
+            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Intune tenant $($graph.TenantId)"
+            if ($AddToGroup) {
+                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+                Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+            }
+        }
         # Defining Variables
         $graphApiVersion = "beta"
         $Resource = "deviceManagement/deviceEnrollmentConfigurations"
@@ -1517,7 +2034,35 @@ Invoke-AutopilotSync
     [cmdletbinding()]
     param
     (
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
+    if ($AppId -ne "") {
+        $body = @{
+            grant_type    = "client_credentials";
+            client_id     = $AppId;
+            client_secret = $AppSecret;
+            scope         = "https://graph.microsoft.com/.default";
+        }
+ 
+        $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+        $accessToken = $response.access_token
+ 
+        $accessToken
+
+        Select-MgProfile -Name Beta
+        $graph = Connect-MgGraph  -AccessToken $accessToken 
+        Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+    }
+    else {
+        $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+        Write-Host "Connected to Intune tenant $($graph.TenantId)"
+        if ($AddToGroup) {
+            $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+        }
+    }
     # Defining Variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/windowsAutopilotSettings/sync"
@@ -1551,7 +2096,35 @@ Function Get-AutopilotSyncInfo() {
     [cmdletbinding()]
     param
     (
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
+    if ($AppId -ne "") {
+        $body = @{
+            grant_type    = "client_credentials";
+            client_id     = $AppId;
+            client_secret = $AppSecret;
+            scope         = "https://graph.microsoft.com/.default";
+        }
+ 
+        $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+        $accessToken = $response.access_token
+ 
+        $accessToken
+
+        Select-MgProfile -Name Beta
+        $graph = Connect-MgGraph  -AccessToken $accessToken 
+        Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+    }
+    else {
+        $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+        Write-Host "Connected to Intune tenant $($graph.TenantId)"
+        if ($AddToGroup) {
+            $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+        }
+    }
     # Defining Variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/windowsAutopilotSettings"
@@ -1595,7 +2168,10 @@ Import-AutopilotCSV -csvFile C:\Devices.csv
     param
     (
         [Parameter(Mandatory = $true)] $csvFile,
-        [Parameter(Mandatory = $false)] [Alias("orderIdentifier")] $groupTag = ""
+        [Parameter(Mandatory = $false)] [Alias("orderIdentifier")] $groupTag = "",
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
     
     # Read CSV and process each device
@@ -1664,10 +2240,37 @@ Get-AutopilotEvent
     [cmdletbinding()]
     param
     (
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret
     )
 
     Process {
+        if ($AppId -ne "") {
+            $body = @{
+                grant_type    = "client_credentials";
+                client_id     = $AppId;
+                client_secret = $AppSecret;
+                scope         = "https://graph.microsoft.com/.default";
+            }
+     
+            $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
+            $accessToken = $response.access_token
+     
+            $accessToken
 
+            Select-MgProfile -Name Beta
+            $graph = Connect-MgGraph  -AccessToken $accessToken 
+            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+        }
+        else {
+            $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            Write-Host "Connected to Intune tenant $($graph.TenantId)"
+            if ($AddToGroup) {
+                $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+                Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+            }
+        }
         # Defining Variables
         $graphApiVersion = "beta"
         $Resource = "deviceManagement/autopilotEvents"
