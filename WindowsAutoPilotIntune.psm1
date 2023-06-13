@@ -109,7 +109,15 @@ Get-AutopilotDevice
         }
         elseif ($serial) {
             $encoded = [uri]::EscapeDataString($serial)
+            ##Check if serial contains a space
+            $serialelements = $serial.Split(" ")
+            if ($serialelements.Count -gt 1) {
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$filter=contains(serialNumber,'$($serialelements[0])')"
+                $serialhasspaces = 1
+            }
+            else {
             $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$filter=contains(serialNumber,'$encoded')"
+            }
         }
         else {
             $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)"
@@ -123,13 +131,22 @@ Get-AutopilotDevice
                 $response
             }
             else {
-                $devices = $response.value
+                if ($serialhasspaces -eq 1) {  
+                    $devices = $response.value | Where-Object {$_.serialNumber -eq "$($serial)"}
+               } else {
+                    $devices = $response.value 
+               }
                 $devicesNextLink = $response."@odata.nextLink"
     
                 while ($null -ne $devicesNextLink) {
                     $devicesResponse = (Invoke-MgGraphRequest -Uri $devicesNextLink -Method Get -OutputType PSObject)
                     $devicesNextLink = $devicesResponse."@odata.nextLink"
-                    $devices += $devicesResponse.value
+                    if ($serialhasspaces -eq 1) {
+                        $devices += $devicesResponse.value | Where-Object {$_.serialNumber -eq "$($serial)"}
+                    }
+                    else {
+                        $devices += $devicesResponse.value
+                    }
                 }
     
                 if ($expand) {
@@ -291,13 +308,18 @@ Get-AutopilotImportedDevice
     [cmdletbinding()]
     param
     (
-        [Parameter(Mandatory = $false)] $id = $null
+        [Parameter(Mandatory = $false)] $id = $null,
+        [Parameter(Mandatory = $false)] $serial
     )
 
     # Defining Variables
     $graphApiVersion = "beta"
     if ($id) {
         $uri = "https://graph.microsoft.com/$graphApiVersion/deviceManagement/importedWindowsAutopilotDeviceIdentities/$id"
+    } 
+    elseif ($serial) {
+        # handles also serial numbers with spaces    
+        $uri = "https://graph.microsoft.com/$graphApiVersion/deviceManagement/importedWindowsAutopilotDeviceIdentities/?`$filter=contains(serialNumber,'$serial')"
     }
     else {
         $uri = "https://graph.microsoft.com/$graphApiVersion/deviceManagement/importedWindowsAutopilotDeviceIdentities"
@@ -376,7 +398,7 @@ Function Add-AutopilotImportedDevice() {
     $json = @"
 {
     "@odata.type": "#microsoft.graph.importedWindowsAutopilotDeviceIdentity",
-    "orderIdentifier": "$groupTag",
+    "groupTag": "$groupTag",
     "serialNumber": "$serialNumber",
     "productKey": "",
     "hardwareIdentifier": "$hardwareIdentifier",
