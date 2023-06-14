@@ -98,45 +98,17 @@ PrivateData = @{
         # Tags = @()
 
         # A URL to the license for this module.
-        # LicenseUri = ''
+        # LicenseUri = 'https://github.com/andrew-s-taylor/WindowsAutopilotInfo/blob/main/LICENSE'
 
         # A URL to the main website for this project.
-        # ProjectUri = ''
+        # ProjectUri = 'https://github.com/andrew-s-taylor/WindowsAutopilotInfo/community'
 
         # A URL to an icon representing this module.
         # IconUri = ''
 
         # ReleaseNotes of this module
         ReleaseNotes = @'
-Version 5.1: Transitioned to Microsoft Graph SDK
-Version 4.8: Added Connect-MSGraphApp wrapper to simplify app-based authentication.
-Version 4.7: Fixed a bug.
-Version 4.6: Added Get-AutopilotSyncInfo cmdlet.
-Version 4.5: Enabled skip connectivity check option for Hybrid Azure AD Join VPN support.
-Version 4.4: Removed Set-AutoPilotDeviceAssignedUser function (workaround no longer needed). Added logic to JSON conversion function.
-Version 4.3: Re-added Set-AutoPilotDeviceAssignedUser function to address white glove user assignment issue (temporary workaround)
-Version 4.2: Bug fix for not-yet-supported property
-Version 4.0: Reworked *-AutopilotProfile functions, added new Get-AutopilotEvent function, added verbose logging to all functions
-Version 3.9: Removed logic to install and load dependent modules and instead declared them in the module manifest, for compatibility with Azure Automation
-Version 3.8: Replaced Set-AutopilotDeviceAssignedUser with more-capable Set-AutopilotDevice method
-Version 3.7: Fixed but with serial number filter on Get-AutopilotDevice
-Version 3.6: Added 256 to the default CloudAssignedOobeConfig value to suppress the check for Windows feature updates
-Version 3.5: Fixed HttpMethod values for DELETE and PATCH to be upper-case
-Version 3.4: Fixed a bug
-Version 3.3: Removed duplicate cmdlet
-Version 3.2: Added Get-AutopilotProfileAssignedDevices cmdlet to get the list of devices with a specific profile
-Version 3.1: Fixed bugs, added expand logic for Autopilot devices
-Version 3.0: Modified script to use the Microsoft.Graph.Intune module, added new functions from Damien Van Robaeys
-Version 2.7: Added support for using GroupTag instead of OrderID for uploading batches of devices
-Version 2.6: Added the ability to read the OrderID value from a CSV file; fixed "Waiting for 1 of" message
-Version 2.5: Modified ConvertTo-AutopilotConfigurationJSON to set ZtdCorrelationId to the ID of the profile; added Set-AutoPilotDeviceAssignedUser function (thanks to Oliver Kieselbach)
-Version 2.4: Modified ConvertTo-AutopilotConfigurationJSON to properly support available AAD user-driven options
-Version 2.3: Added new Invoke-AutopilotSync method (equivalent to clicking "Sync" in the Intune console)
-Version 2.2: Added pagination support (thanks to Oliver Kieselbach)
-Version 2.1: Fixed syntax issue in connect method
-Version 2.0: Added cmdlet help (and fixed the mistake of using 1.41 as a verion, since 1.41 is considered > 1.5 because 41 is greater than 5)
-Version 1.4: Added functions to delete a device, to list Autopilot profiles, and to convert Autopilot profiles into JSON.
-Version 1.3: Fixed module manifest to export functions
+Version 1.0: First releast of community fork
 '@
     } # End of PSData hashtable
 

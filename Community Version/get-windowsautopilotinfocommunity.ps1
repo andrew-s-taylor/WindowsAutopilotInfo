@@ -5,8 +5,8 @@
 .COMPANYNAME 
 .COPYRIGHT GPL
 .TAGS intune endpoint MEM autopilot
-.LICENSEURI https://github.com/andrew-s-taylor/public/blob/main/LICENSE
-.PROJECTURI https://github.com/andrew-s-taylor/public
+.LICENSEURI https://github.com/andrew-s-taylor/WindowsAutopilotInfo/blob/main/LICENSE
+.PROJECTURI https://github.com/andrew-s-taylor/WindowsAutopilotInfo/community
 .ICONURI 
 .EXTERNALMODULEDEPENDENCIES
 .REQUIREDSCRIPTS 
