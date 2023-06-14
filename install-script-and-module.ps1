@@ -36,7 +36,6 @@ write-host "Downloaded WindowsAutoPilotIntune.psd1"
             Find-PackageProvider -Name NuGet -ForceBootstrap -IncludeDependencies
         }
                 # Get Microsoft Graph Groups if needed
-        if ($AddToGroup) {
             $module = Import-Module microsoft.graph.groups -PassThru -ErrorAction Ignore
             if (-not $module) {
                 Write-Host "Installing module MS Graph Groups"
@@ -44,7 +43,7 @@ write-host "Downloaded WindowsAutoPilotIntune.psd1"
             }
             Import-Module microsoft.graph.groups -Scope Global
 
-        }
+       
         # Get Graph Authentication module (and dependencies)
         $module = Import-Module microsoft.graph.authentication -PassThru -ErrorAction Ignore
         if (-not $module) {
