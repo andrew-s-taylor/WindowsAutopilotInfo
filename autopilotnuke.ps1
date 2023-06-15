@@ -60,7 +60,7 @@ Runs from OOBE screen, connects to Azure AD, Intune and optionally to AD DS, fin
 Asks for deletion of each object
  Usage:
  - The script can work from running Windows 10, but be careful removing native Azure AD joined Intune Devices - you can lock yourself out, if you do not know local administrator's password
- - Intended usage – from OOBE (Out of Box Experience)
+ - Intended usage - from OOBE (Out of Box Experience)
  - While in OOBE, hits Shift+F10
  - Powershell.exe
  - Install-Script AutopilotNuke
@@ -144,7 +144,7 @@ Write-Host "Downloading and installing all required modules, please accept all p
         Import-Module microsoft.graph.Identity.DirectoryManagement -Scope Global
 
         $module3 = Import-Module WindowsAutopilotInfoCommunity -PassThru -ErrorAction Ignore
-        if (-not $module4) {
+        if (-not $module3) {
             Write-Host "Installing module WindowsAutopilotInfoCommunity"
             Install-Module WindowsAutopilotInfoCommunity -Force
         }
@@ -250,7 +250,7 @@ if($DomainIP -ne $null)
 }
 
 
-$currentAutopilotDevice = $autopilotDevices | ? {$_.serialNumber -eq $serial}
+$currentAutopilotDevice = $autopilotDevices | Where-Object {$_.serialNumber -eq $serial}
 
 if ($currentAutopilotDevice -ne $null)
 {
@@ -259,13 +259,13 @@ if ($currentAutopilotDevice -ne $null)
 
     Write-Verbose $currentAutopilotDevice |  Format-List -Property *
     
-    [array]$relatedIntuneDevice = $intuneDevices | ? {
+    [array]$relatedIntuneDevice = $intuneDevices | Where-Object {
     $_.serialNumber -eq $currentAutopilotDevice.serialNumber -or 
     $_.serialNumber -eq $currentAutopilotDevice.serialNumber.replace(' ','') -or 
     $_.id -eq $currentAutopilotDevice.managedDeviceId -or 
     $_.azureADDeviceId -eq $currentAutopilotDevice.azureActiveDirectoryDeviceId}       
    
-    [array]$FoundAADDevices = $aadDevices | ? { 
+    [array]$FoundAADDevices = $aadDevices | Where-Object { 
         $_.DeviceId -eq $currentAutopilotDevice.azureActiveDirectoryDeviceId -or 
         $_.DeviceId -iin $relatedIntuneDevice.azureADDeviceId -or 
         $_.DevicePhysicalIds -match $currentAutopilotDevice.Id
@@ -295,7 +295,7 @@ if ($currentAutopilotDevice -ne $null)
                 $deviceid = $relIntuneDevice.id
                 $url = "https://graph.microsoft.com/beta/deviceManagement/managedDevices/$deviceid"
                 $response = Invoke-MgGraphRequest -Uri $url -Method Delete -OutputType PSObject
-            #Remove-IntuneManagedDevice –managedDeviceId $relIntuneDevice.id -ErrorAction Continue
+            #Remove-IntuneManagedDevice -managedDeviceId $relIntuneDevice.id -ErrorAction Continue
             }
         }
 
@@ -319,7 +319,7 @@ if ($currentAutopilotDevice -ne $null)
             Write-Host "Last sync was" $SecondsSinceLastSync "seconds ago, will sleep for" (610-$SecondsSinceLastSync) "seconds before trying to sync."
             if($Host.UI.PromptForChoice('Autopilot Sync','Do you want to wait?', @('&Yes'; '&No'), 1) -eq 0){Start-Sleep -Seconds (610-$SecondsSinceLastSync) ; Invoke-AutopilotSync}            
         }
-        while (Get-AutopilotDevice  | ? {$_.serialNumber -eq $serial} -ne $null){
+        while (Get-AutopilotDevice  | Where-Object {$_.serialNumber -eq $serial} -ne $null){
             Start-Sleep -Seconds 5                        
        }
        Write-Host "Deleted"
@@ -330,8 +330,8 @@ if ($currentAutopilotDevice -ne $null)
 
 if($relatedIntuneDevice -eq $null -and $FoundAADDevices -eq $null ){
     # this serial number was not found in Autopilot Devices, but we still want to check intune devices with this serial number and search AAD and AD DS for that one
-    [array]$relatedIntuneDevice = $intuneDevices | ? {$_.serialNumber -eq $serial -or $_.serialNumber -eq $serial.replace(' ','')}
-    [array]$FoundAADDevices = $aadDevices | ? { $_.DeviceId -eq $relatedIntuneDevice.azureADDeviceId }
+    [array]$relatedIntuneDevice = $intuneDevices | Where-Object {$_.serialNumber -eq $serial -or $_.serialNumber -eq $serial.replace(' ','')}
+    [array]$FoundAADDevices = $aadDevices | Where-Object { $_.DeviceId -eq $relatedIntuneDevice.azureADDeviceId }
     Write-Host "Found Related Intune Devices:"
 
     $relatedIntuneDevice | Format-Table -Property deviceName, id, userID, enrolledDateTime, LastSyncDateTime, operatingSystem, osVersion, deviceEnrollmentType
@@ -348,7 +348,7 @@ if($relatedIntuneDevice -eq $null -and $FoundAADDevices -eq $null ){
                 $deviceid = $relIntuneDevice.id
                 $url = "https://graph.microsoft.com/beta/deviceManagement/managedDevices/$deviceid"
                 $response = Invoke-MgGraphRequest -Uri $url -Method Delete -OutputType PSObject
-            #Remove-IntuneManagedDevice –managedDeviceId $relIntuneDevice.id -ErrorAction Stop
+            #Remove-IntuneManagedDevice -managedDeviceId $relIntuneDevice.id -ErrorAction Stop
             }
         }
 
@@ -360,7 +360,7 @@ if($relatedIntuneDevice -eq $null -and $FoundAADDevices -eq $null ){
 
 foreach($aadDevice in $FoundAADDevices){
     if($de -ne $null){            
-        $escapedguid = “\” + ((([GUID]$aadDevice.deviceID).ToByteArray() |% {“{0:x}” -f $_}) -join ‘\’)
+        $escapedguid = “\” + ((([GUID]$aadDevice.deviceID).ToByteArray() |% {“{0:x}” -f $_}) -join '\')
         $searcher = New-Object System.DirectoryServices.DirectorySearcher($de,"(&(objectCategory=Computer)(ObjectGUID=$escapedguid))")
         $obj = $searcher.FindOne()
         if ($obj -ne $null){
@@ -422,7 +422,7 @@ if($Host.UI.PromptForChoice('Computer name','Do you want to configure a unique n
            
         $autopilotDevices = Get-AutopilotDevice
 
-        [array]$currentAutopilotDevices = $autopilotDevices | ? {$_.serialNumber -eq $serial}
+        [array]$currentAutopilotDevices = $autopilotDevices | Where-Object {$_.serialNumber -eq $serial}
 
         foreach($currentAutopilotDevice in $currentAutopilotDevices){
         
