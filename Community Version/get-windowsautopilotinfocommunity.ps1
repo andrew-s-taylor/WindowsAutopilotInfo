@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.0.0
+.VERSION 1.0.1
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -12,6 +12,7 @@
 .REQUIREDSCRIPTS 
 .EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
+v1.0.1 - Added support to update group tag on existing devices
 #>
 
 <#
@@ -67,7 +68,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        1.0.0
+Version:        1.0.1
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -1981,6 +1982,10 @@ End {
         $importStart = Get-Date
         $imported = @()
         $computers | ForEach-Object {
+            $device = Get-AutopilotImportedDevice -id $_.id
+            if ($device) {
+                $imported += Set-AutopilotDevice -groupTag $_.'Group Tag'
+            }
             $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
         }
 
