@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 2.6
+.VERSION 2.7
 .GUID b608a45b-6cd0-405e-bfb2-aa11450821b5
 .AUTHOR Alexey Semibratov
 .COMPANYNAME
@@ -12,6 +12,7 @@
 .REQUIREDSCRIPTS
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
+Version 2.7: Changed Autopilot delete method
 Version 2.6: Fixed mg-device command
 Version 2.5: Typo
 Version 2.4: Switched to MgGraph SDK and added support for app reg
@@ -293,8 +294,12 @@ if ($currentAutopilotDevice -ne $null)
    
     if($Host.UI.PromptForChoice('Delete Autopilot Device', 'Do you want to *DELETE* the device with serial number ' + $currentAutopilotDevice.serialNumber +' from the Autopilot?', @('&Yes'; '&No'), 1) -eq 0){
     
-
-        Remove-AutopilotDevice -id $currentAutopilotDevice.id -ErrorAction Continue
+        $id = $currentAutopilotDevice.id
+        $graphApiVersion = "beta"
+        $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"    
+        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
+        Invoke-MGGraphRequest -Uri $uri -Method DELETE
+        #Remove-AutopilotDevice -id $currentAutopilotDevice.id -ErrorAction Continue
         $SecondsSinceLastSync = $null
         $SecondsSinceLastSync = (New-Timespan -Start (Get-AutopilotSyncInfo).lastSyncDateTime.ToUniversalTime()  -End (Get-Date).ToUniversalTime()).TotalSeconds
         If ($SecondsSinceLastSync -ge 610)
