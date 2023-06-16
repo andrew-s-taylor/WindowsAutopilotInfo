@@ -1,29 +1,16 @@
 <#PSScriptInfo
- 
 .VERSION 2.4
- 
 .GUID b608a45b-6cd0-405e-bfb2-aa11450821b5
- 
 .AUTHOR Alexey Semibratov
- 
 .COMPANYNAME
- 
 .COPYRIGHT Alexey Semibratov
- 
 .TAGS
- 
-.LICENSEURI
- 
+.LICENSEURI https://github.com/andrew-s-taylor/WindowsAutopilotInfo/blob/main/LICENSE
 .PROJECTURI
- 
 .ICONURI
- 
 .EXTERNALMODULEDEPENDENCIES
- 
 .REQUIREDSCRIPTS
- 
 .EXTERNALSCRIPTDEPENDENCIES
- 
 .RELEASENOTES
 Version 2.4: Switched to MgGraph SDK and added support for app reg
 Version 2.1: Bugfix
@@ -36,7 +23,6 @@ Version 1.5: Some change in language around on-prem domain. Added wait for sync 
 Version 1.2: Added more documentation and set of required rights. Now if the device is not found in Autopilot, but exists in Intune (by serial number), it still cleans it from AD DS and AAD
 Version 1.1: Invoke-AutopilotSync, when called too soon, error out
 Version 1.0: Original public version.
- 
 #>
 
 <#
