@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 2.5
+.VERSION 2.6
 .GUID b608a45b-6cd0-405e-bfb2-aa11450821b5
 .AUTHOR Alexey Semibratov
 .COMPANYNAME
@@ -12,6 +12,7 @@
 .REQUIREDSCRIPTS
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
+Version 2.6: Fixed mg-device command
 Version 2.5: Typo
 Version 2.4: Switched to MgGraph SDK and added support for app reg
 Version 2.1: Bugfix
@@ -190,7 +191,7 @@ else {
 }
 
 Write-Host "Loading all objects. This can take a while on large tenants"
-$aadDevices = Get-MgDevice -All $true
+$aadDevices = Get-MgDevice -All
 ##$intuneDevices = Get-IntuneManagedDevice -Filter "contains(operatingsystem, 'Windows')" | Get-MSGraphAllPages
 $uri = "https://graph.microsoft.com/beta/deviceManagement/managedDevices"
 $response = Invoke-MgGraphRequest -Uri $uri -Method Get -OutputType PSObject
