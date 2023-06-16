@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 2.4
+.VERSION 2.5
 .GUID b608a45b-6cd0-405e-bfb2-aa11450821b5
 .AUTHOR Alexey Semibratov
 .COMPANYNAME
@@ -12,6 +12,7 @@
 .REQUIREDSCRIPTS
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
+Version 2.5: Typo
 Version 2.4: Switched to MgGraph SDK and added support for app reg
 Version 2.1: Bugfix
 Version 2.0: Bugfix
@@ -129,12 +130,12 @@ Write-Host "Downloading and installing all required modules, please accept all p
         }
         Import-Module microsoft.graph.Identity.DirectoryManagement -Scope Global
 
-        $module3 = Import-Module WindowsAutopilotInfoCommunity -PassThru -ErrorAction Ignore
+        $module3 = Import-Module WindowsAutopilotIntuneCommunity -PassThru -ErrorAction Ignore
         if (-not $module3) {
-            Write-Host "Installing module WindowsAutopilotInfoCommunity"
-            Install-Module WindowsAutopilotInfoCommunity -Force
+            Write-Host "Installing module WindowsAutopilotIntuneCommunity"
+            Install-Module WindowsAutopilotIntuneCommunity -Force
         }
-        Import-Module WindowsAutopilotInfoCommunity -Scope Global
+        Import-Module WindowsAutopilotIntuneCommunity -Scope Global
 
 
 $session = New-CimSession
