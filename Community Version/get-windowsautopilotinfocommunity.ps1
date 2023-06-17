@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.0.0
+.VERSION 1.0.1
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -12,6 +12,8 @@
 .REQUIREDSCRIPTS 
 .EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
+v1.0.1 - Added support to update group tag on existing devices
+v1.0.2 - Updated logic used to update group tag on existing devices [lines 1982-1990, 2058-2060]
 #>
 
 <#
@@ -67,7 +69,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        1.0.0
+Version:        1.0.1
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -1977,12 +1979,27 @@ End {
         }
     }
     if ($Online) {
+        # Update existing devices by Thiago Beier https://twitter.com/thiagobeier https://www.linkedin.com/in/tbeier/
+        
+        $importStart = Get-Date
+        $imported = @()
+        $computers | ForEach-Object {
+            $device = Get-AutopilotDevice | Where-Object {$_.serialNumber -eq "$($serial)"}
+            if ($device) {
+                "Updating Existing Device - Working on device serial $($serial)"
+                $imported += Set-AutopilotDevice -Id $device.Id -groupTag $GroupTag
+            } else {
         # Add the devices
+        "Adding New Device serial $($serial)"
         $importStart = Get-Date
         $imported = @()
         $computers | ForEach-Object {
             $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
         }
+            }
+        }
+        
+
 
         # Wait until the devices have been imported
         $processingCount = 1
@@ -1990,7 +2007,8 @@ End {
             $current = @()
             $processingCount = 0
             $imported | ForEach-Object {
-                $device = Get-AutopilotImportedDevice -id $_.id
+                #$device = Get-AutopilotImportedDevice -id $_.id
+                $device = Get-AutopilotImportedDevice | Where-Object {$_.serialNumber -eq "$($serial)"}
                 if ($device.state.deviceImportStatus -eq "unknown") {
                     $processingCount = $processingCount + 1
                 }
@@ -2037,6 +2055,11 @@ End {
         $syncDuration = (Get-Date) - $syncStart
         $syncSeconds = [Math]::Ceiling($syncDuration.TotalSeconds)
         Write-Host "All devices synced. Elapsed time to complete sync: $syncSeconds seconds"
+
+        # Cleanup by Thiago Beier https://twitter.com/thiagobeier https://www.linkedin.com/in/tbeier/
+        Get-AutopilotImportedDevice | Where-Object { $_.serialnumber -eq "$serial" } | foreach-object { Remove-AutopilotImportedDevice -id $_.id }
+        # Invoke AutopilotSync (When windows autopilot devices GroupTag are updated // changing windows autopilot deployment profiles)
+        Invoke-AutopilotSync
 
         # Add the device to the specified AAD group
         if ($AddToGroup) {
@@ -2095,3 +2118,4 @@ End {
         }
     }
 }
+
