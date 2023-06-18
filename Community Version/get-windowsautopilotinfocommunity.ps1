@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.0.1
+.VERSION 1.0.2
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -1994,6 +1994,10 @@ End {
         $importStart = Get-Date
         $imported = @()
         $computers | ForEach-Object {
+            $device = Get-AutopilotImportedDevice -id $_.id
+            if ($device) {
+                $imported += Set-AutopilotDevice -groupTag $_.'Group Tag'
+            }
             $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
         }
             }
