@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.0.2
+.VERSION 1.0.3
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -14,6 +14,7 @@
 .RELEASENOTES
 v1.0.1 - Added support to update group tag on existing devices
 v1.0.2 - Updated logic used to update group tag on existing devices [lines 1982-1990, 2058-2060]
+v1.0.3 - Bug Fix
 #>
 
 <#
@@ -1994,10 +1995,6 @@ End {
         $importStart = Get-Date
         $imported = @()
         $computers | ForEach-Object {
-            $device = Get-AutopilotImportedDevice -id $_.id
-            if ($device) {
-                $imported += Set-AutopilotDevice -groupTag $_.'Group Tag'
-            }
             $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
         }
             }
