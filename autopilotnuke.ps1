@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 2.7
+.VERSION 2.8
 .GUID b608a45b-6cd0-405e-bfb2-aa11450821b5
 .AUTHOR Alexey Semibratov
 .COMPANYNAME
@@ -12,6 +12,7 @@
 .REQUIREDSCRIPTS
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
+Version 2.8: Fixed speechmarks issue
 Version 2.7: Changed Autopilot delete method
 Version 2.6: Fixed mg-device command
 Version 2.5: Typo
@@ -113,14 +114,14 @@ Write-Host "Downloading and installing all required modules, please accept all p
         $module = Import-Module microsoft.graph.authentication -PassThru -ErrorAction Ignore
         if (-not $module) {
             Write-Host "Installing module microsoft.graph.authentication"
-            Install-Module microsoft.graph.authentication -Force
+            Install-Module microsoft.graph.authentication -Force -ErrorAction Ignore
         }
         Import-Module microsoft.graph.authentication -Scope Global
 
             $module = Import-Module microsoft.graph.groups -PassThru -ErrorAction Ignore
             if (-not $module) {
                 Write-Host "Installing module MS Graph Groups"
-                Install-Module microsoft.graph.groups -Force
+                Install-Module microsoft.graph.groups -Force -ErrorAction Ignore
             }
             Import-Module microsoft.graph.groups -Scope Global
 
@@ -128,14 +129,14 @@ Write-Host "Downloading and installing all required modules, please accept all p
         $module2 = Import-Module Microsoft.Graph.Identity.DirectoryManagement -PassThru -ErrorAction Ignore
         if (-not $module2) {
             Write-Host "Installing module MS Graph Identity Management"
-            Install-Module Microsoft.Graph.Identity.DirectoryManagement -Force
+            Install-Module Microsoft.Graph.Identity.DirectoryManagement -Force -ErrorAction Ignore
         }
         Import-Module microsoft.graph.Identity.DirectoryManagement -Scope Global
 
         $module3 = Import-Module WindowsAutopilotIntuneCommunity -PassThru -ErrorAction Ignore
         if (-not $module3) {
             Write-Host "Installing module WindowsAutopilotIntuneCommunity"
-            Install-Module WindowsAutopilotIntuneCommunity -Force
+            Install-Module WindowsAutopilotIntuneCommunity -Force -ErrorAction Ignore
         }
         Import-Module WindowsAutopilotIntuneCommunity -Scope Global
 
@@ -353,7 +354,7 @@ if($relatedIntuneDevice -eq $null -and $FoundAADDevices -eq $null ){
 
 foreach($aadDevice in $FoundAADDevices){
     if($de -ne $null){            
-        $escapedguid = “\” + ((([GUID]$aadDevice.deviceID).ToByteArray() |% {“{0:x}” -f $_}) -join '\')
+        $escapedguid = "\" + ((([GUID]$aadDevice.deviceID).ToByteArray() |ForEach-Object {"{0:x}" -f $_}) -join '\')
         $searcher = New-Object System.DirectoryServices.DirectorySearcher($de,"(&(objectCategory=Computer)(ObjectGUID=$escapedguid))")
         $obj = $searcher.FindOne()
         if ($obj -ne $null){

@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.0.3
+.VERSION 1.0.4
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -15,6 +15,7 @@
 v1.0.1 - Added support to update group tag on existing devices
 v1.0.2 - Updated logic used to update group tag on existing devices [lines 1982-1990, 2058-2060]
 v1.0.3 - Bug Fix
+v1.0.4 - Suppressed error when importing modules if in use
 #>
 
 <#
@@ -70,7 +71,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        1.0.1
+Version:        1.0.4
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -114,7 +115,7 @@ Begin {
         $module = Import-Module microsoft.graph.authentication -PassThru -ErrorAction Ignore
         if (-not $module) {
             Write-Host "Installing module microsoft.graph.authentication"
-            Install-Module microsoft.graph.authentication -Force
+            Install-Module microsoft.graph.authentication -Force -ErrorAction Ignore
         }
         Import-Module microsoft.graph.authentication -Scope Global
 
@@ -123,7 +124,7 @@ Begin {
             $module = Import-Module microsoft.graph.groups -PassThru -ErrorAction Ignore
             if (-not $module) {
                 Write-Host "Installing module MS Graph Groups"
-                Install-Module microsoft.graph.groups -Force
+                Install-Module microsoft.graph.groups -Force -ErrorAction Ignore
             }
             Import-Module microsoft.graph.groups -Scope Global
 
@@ -132,7 +133,7 @@ Begin {
         $module2 = Import-Module Microsoft.Graph.Identity.DirectoryManagement -PassThru -ErrorAction Ignore
         if (-not $module2) {
             Write-Host "Installing module MS Graph Identity Management"
-            Install-Module Microsoft.Graph.Identity.DirectoryManagement -Force
+            Install-Module Microsoft.Graph.Identity.DirectoryManagement -Force -ErrorAction Ignore
         }
         Import-Module microsoft.graph.Identity.DirectoryManagement -Scope Global
 
