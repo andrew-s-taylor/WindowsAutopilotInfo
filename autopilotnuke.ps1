@@ -1,7 +1,7 @@
 <#PSScriptInfo
-.VERSION 2.8
+.VERSION 2.9
 .GUID b608a45b-6cd0-405e-bfb2-aa11450821b5
-.AUTHOR Alexey Semibratov
+.AUTHOR Alexey Semibratov - Updated by Andrew Taylor
 .COMPANYNAME
 .COPYRIGHT Alexey Semibratov
 .TAGS
@@ -12,6 +12,7 @@
 .REQUIREDSCRIPTS
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
+Version 2.9: Remove-MgDevice ObjectID switched to ID to match updated module
 Version 2.8: Fixed speechmarks issue
 Version 2.7: Changed Autopilot delete method
 Version 2.6: Fixed mg-device command
@@ -70,14 +71,7 @@ Asks for deletion of each object
         Ask if you want to add it to AP then adds
  
 Minimum security rights needed:
-• To authorize Intune Graph, you will need global admin, but this is just one time. Ask your GA to run:
-    Install-PackageProvider -Name NuGet
-    Install-Module AzureAD
-     Install-Module WindowsAutopilotIntune
-    Install-Module Microsoft.Graph.Intune
-    Connect-AzureAD
-    Connect-MSGraph
-    Accept the consent prompt
+• This script will install the required modules
 • Custom role with the following permissions required in Intune:
     Managed devices
         Read
@@ -368,7 +362,7 @@ foreach($aadDevice in $FoundAADDevices){
     }
     if($Host.UI.PromptForChoice('Delete Azure Active Directory Device', 'Do you want to *DELETE* the device with the name ' + $aadDevice.DisplayName +' from Azure AD?', @('&Yes'; '&No'), 1) -eq 0){
         
-        Remove-mgdevice -DeviceId $aadDevice.ObjectID -ErrorAction SilentlyContinue
+        Remove-mgdevice -DeviceId $aadDevice.Id -ErrorAction SilentlyContinue
     }
     
 }
