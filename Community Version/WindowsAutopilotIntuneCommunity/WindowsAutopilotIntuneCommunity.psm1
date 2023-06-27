@@ -822,7 +822,7 @@ Get-AutopilotProfile | ConvertTo-AutopilotConfigurationJSON
     Begin {
 
         # Set the org-related info
-        $script:TenantOrg = Get-Organization
+        $script:TenantOrg = (Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/organization" -OutputType PSObject).value
         foreach ($domain in $script:TenantOrg.VerifiedDomains) {
             if ($domain.isDefault) {
                 $script:TenantDomain = $domain.name
