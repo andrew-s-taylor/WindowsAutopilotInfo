@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 1.0.4
+.VERSION 2.0.0
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -16,6 +16,7 @@ v1.0.1 - Added support to update group tag on existing devices
 v1.0.2 - Updated logic used to update group tag on existing devices [lines 1982-1990, 2058-2060]
 v1.0.3 - Bug Fix
 v1.0.4 - Suppressed error when importing modules if in use
+v2.0.0 - Added Intune Wipe and Sysprep Parameters
 #>
 
 <#
@@ -52,6 +53,10 @@ Specifies the name of the Azure AD group that the new device should be added to.
 Wait for the Autopilot profile assignment. (This can take a while for dynamic groups.)
 .PARAMETER Reboot
 Reboot the device after the Autopilot profile has been assigned (necessary to download the profile and apply the computer name, if specified).
+.PARAMETER Wipe
+Wipe the device after the Autopilot profile has been assigned (sends an Intune wipe for Intune managed devices only).
+.PARAMETER Sysprep
+Kicks off Sysprep after the Autpilot profile has been assigned
 .EXAMPLE
 .\Get-WindowsAutoPilotInfo.ps1 -ComputerName MYCOMPUTER -OutputFile .\MyComputer.csv
 .EXAMPLE
@@ -71,7 +76,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        1.0.4
+Version:        2.0.0
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -94,7 +99,9 @@ param(
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String] $AddToGroup = "",
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String] $AssignedComputerName = "",
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Assign = $false, 
-    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Reboot = $false
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Reboot = $false,
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Wipe = $false,
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Sysprep = $false
 )
 
 Begin {
@@ -2117,6 +2124,28 @@ End {
             if ($Reboot) {
                 Restart-Computer -Force
             }
+            if ($Wipe) {
+                $deviceserial = $serial
+                ##Find device ID
+                $deviceuri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?$filter=serialNumber eq '$serial'"
+                $deviceid = (Invoke-MgGraphRequest -Uri $deviceuri -Method GET -OutputType PSObject -SkipHttpErrorCheck).value.id
+                write-host "Sending a wipe to $deviceid"
+                ##Send a wipe
+                $wipeuri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/$deviceid/wipe"
+                $wipebody = @{
+                    keepEnrollmentData = $false
+                    keepUserData = $false
+                }
+                Invoke-MgGraphRequest -Uri $wipeuri -Method POST -Body $wipebody -ContentType "application/json"
+                write-host "Wipe sent to $deviceid"
+            }
+            if ($Sysprep) {
+                write-host "Sending a sysprep to $deviceid"
+                ##Send a sysprep
+                Start-Process -NoNewWindow -FilePath "C:\windows\system32\sysprep\sysprep.exe" -ArgumentList "/oobe /reboot /quiet"
+                write-host "Sysprep sent to $deviceid"
+            }
+
         }
     }
 }
