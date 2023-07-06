@@ -12,7 +12,7 @@
 RootModule = 'WindowsAutoPilotIntuneCommunity'
 
 # Version number of this module.
-ModuleVersion = '2.0'
+ModuleVersion = '2.1'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -111,6 +111,7 @@ PrivateData = @{
 Version 1.0: First releast of community fork
 Version 1.1: Fixed Get-Organization issue for domain
 Version 2.0: Updated to work with v2 SDK
+Version 2.1: Authentication fix
 '@
     } # End of PSData hashtable
 

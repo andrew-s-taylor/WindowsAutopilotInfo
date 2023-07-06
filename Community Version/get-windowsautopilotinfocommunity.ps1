@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.0.2
+.VERSION 3.0.3
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -18,6 +18,7 @@ v1.0.3 - Bug Fix
 v1.0.4 - Suppressed error when importing modules if in use
 v2.0.0 - Added Intune Wipe and Sysprep Parameters
 v3.0.0 - Support added for v2 Graph SDK
+v3.0.3 - Authentication fixes
 #>
 
 <#
@@ -77,7 +78,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        3.0.2
+Version:        3.0.3
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -1874,10 +1875,10 @@ Get-AutopilotEvent
             Connect-ToGraph -AppId $AppId -AppSecret $AppSecret -Tenant $TenantId
         }
         else {
-            $graph = Connect-ToGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+            $graph = Connect-ToGraph -scopes "Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All"
             Write-Host "Connected to Intune tenant $($graph.TenantId)"
             if ($AddToGroup) {
-                $aadId = Connect-ToGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+                $aadId = Connect-ToGraph -scopes "Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All"
                 Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
             }
         }

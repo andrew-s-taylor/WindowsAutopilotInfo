@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.1
+.VERSION 3.2
 .GUID b608a45b-6cd0-405e-bfb2-aa11450821b5
 .AUTHOR Alexey Semibratov - Updated by Andrew Taylor
 .COMPANYNAME
@@ -12,6 +12,7 @@
 .REQUIREDSCRIPTS
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
+Version 3.2: Second fix
 Version 3.1: Fix
 Version 3.0: Updated to work with SDK v2
 Version 2.9: Remove-MgDevice ObjectID switched to ID to match updated module
@@ -243,10 +244,10 @@ if ($AppId -ne "") {
     Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
 }
 else {
-    $graph = Connect-ToGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+    $graph = Connect-ToGraph -scopes "Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All"
     Write-Host "Connected to Intune tenant $($graph.TenantId)"
     if ($AddToGroup) {
-        $aadId = Connect-ToGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+        $aadId = Connect-ToGraph -scopes "Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All"
         Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
     }
 }
