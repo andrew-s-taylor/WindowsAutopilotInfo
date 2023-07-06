@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 2.0.0
+.VERSION 3.0.0
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -17,6 +17,7 @@ v1.0.2 - Updated logic used to update group tag on existing devices [lines 1982-
 v1.0.3 - Bug Fix
 v1.0.4 - Suppressed error when importing modules if in use
 v2.0.0 - Added Intune Wipe and Sysprep Parameters
+v3.0.0 - Support added for v2 Graph SDK
 #>
 
 <#
@@ -76,7 +77,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        2.0.0
+Version:        3.0.0
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -1855,9 +1856,19 @@ Get-AutopilotEvent
             $accessToken = $response.access_token
      
             $accessToken
+            $version = (get-module microsoft.graph.authentication | Select-Object -expandproperty Version).major
 
-            Select-MgProfile -Name Beta
-            $graph = Connect-MgGraph  -AccessToken $accessToken 
+            if ($version -eq 2) {
+                write-host "Version 2 module detected"
+                $Encrypted = ConvertTo-SecureString -String $accessToken -AsPlainText -Force
+                $graph = Connect-MgGraph  -AccessToken $Encrypted 
+            }
+            else {
+                write-host "Version 1 Module Detected"
+                Select-MgProfile -Name Beta
+                $graph = Connect-MgGraph  -AccessToken $accessToken 
+            }
+            
             Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
         }
         else {
