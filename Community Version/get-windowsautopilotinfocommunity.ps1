@@ -162,54 +162,7 @@ Function BoolToString() {
 
 #endregion
 
-#region App-based authentication
-Function Connect-MSGraphApp {
-    <#
-.SYNOPSIS
-Authenticates to the Graph API via the Microsoft.Graph.Intune module using app-based authentication.
- 
-.DESCRIPTION
-The Connect-MSGraphApp cmdlet is a wrapper cmdlet that helps authenticate to the Intune Graph API using the Microsoft.Graph.Intune module. It leverages an Azure AD app ID and app secret for authentication. See https://oofhours.com/2019/11/29/app-based-authentication-with-intune/ for more information.
- 
-.PARAMETER Tenant
-Specifies the tenant (e.g. contoso.onmicrosoft.com) to which to authenticate.
- 
-.PARAMETER AppId
-Specifies the Azure AD app ID (GUID) for the application that will be used to authenticate.
- 
-.PARAMETER AppSecret
-Specifies the Azure AD app secret corresponding to the app ID that will be used to authenticate.
- 
-.EXAMPLE
-Connect-MSGraphApp -TenantId $tenantID -AppId $app -AppSecret $secret
- 
--#>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $false)] [string]$Tenant,
-        [Parameter(Mandatory = $false)] [string]$AppId,
-        [Parameter(Mandatory = $false)] [string]$AppSecret
-    )
 
-    Process {
-        Import-Module Microsoft.Graph.Authentication
-        $body = @{
-            grant_type    = "client_credentials";
-            client_id     = $AppId;
-            client_secret = $AppSecret;
-            scope         = "https://graph.microsoft.com/.default";
-        }
- 
-        $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$tenant/oauth2/v2.0/token -Body $body
-        $accessToken = $response.access_token
- 
-        $accessToken
-
-        Select-MgProfile -Name Beta
-        Connect-MgGraph  -AccessToken $accessToken
-    }
-}
 
 #region Core methods
 
