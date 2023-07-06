@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.0.1
+.VERSION 3.0.2
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -77,7 +77,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        3.0.1
+Version:        3.0.2
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -1871,7 +1871,7 @@ Get-AutopilotEvent
 
         # Connect
         if ($AppId -ne "") {
-            Connect-ToGraph -AppId $AppId -AppSecret $AppSecret -TenantId $TenantId
+            Connect-ToGraph -AppId $AppId -AppSecret $AppSecret -Tenant $TenantId
         }
         else {
             $graph = Connect-ToGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All

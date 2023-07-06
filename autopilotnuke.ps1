@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 2.9
+.VERSION 3.1
 .GUID b608a45b-6cd0-405e-bfb2-aa11450821b5
 .AUTHOR Alexey Semibratov - Updated by Andrew Taylor
 .COMPANYNAME
@@ -12,6 +12,8 @@
 .REQUIREDSCRIPTS
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
+Version 3.1: Fix
+Version 3.0: Updated to work with SDK v2
 Version 2.9: Remove-MgDevice ObjectID switched to ID to match updated module
 Version 2.8: Fixed speechmarks issue
 Version 2.7: Changed Autopilot delete method
@@ -95,6 +97,82 @@ param(
     [Parameter(Mandatory = $False)] [String] $AppSecret = ""
 )
 
+
+Function Connect-ToGraph {
+    <#
+.SYNOPSIS
+Authenticates to the Graph API via the Microsoft.Graph.Authentication module.
+ 
+.DESCRIPTION
+The Connect-ToGraph cmdlet is a wrapper cmdlet that helps authenticate to the Intune Graph API using the Microsoft.Graph.Authentication module. It leverages an Azure AD app ID and app secret for authentication or user-based auth.
+ 
+.PARAMETER Tenant
+Specifies the tenant (e.g. contoso.onmicrosoft.com) to which to authenticate.
+ 
+.PARAMETER AppId
+Specifies the Azure AD app ID (GUID) for the application that will be used to authenticate.
+ 
+.PARAMETER AppSecret
+Specifies the Azure AD app secret corresponding to the app ID that will be used to authenticate.
+
+.PARAMETER Scopes
+Specifies the user scopes for interactive authentication.
+ 
+.EXAMPLE
+Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
+ 
+-#>
+    [cmdletbinding()]
+    param
+    (
+        [Parameter(Mandatory = $false)] [string]$Tenant,
+        [Parameter(Mandatory = $false)] [string]$AppId,
+        [Parameter(Mandatory = $false)] [string]$AppSecret,
+        [Parameter(Mandatory = $false)] [string]$scopes
+    )
+
+    Process {
+        Import-Module Microsoft.Graph.Authentication
+        $version = (get-module microsoft.graph.authentication | Select-Object -expandproperty Version).major
+
+        if ($AppId -ne "") {
+            $body = @{
+                grant_type    = "client_credentials";
+                client_id     = $AppId;
+                client_secret = $AppSecret;
+                scope         = "https://graph.microsoft.com/.default";
+            }
+     
+            $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$Tenant/oauth2/v2.0/token -Body $body
+            $accessToken = $response.access_token
+     
+            $accessToken
+            if ($version -eq 2) {
+                write-host "Version 2 module detected"
+                $accesstokenfinal = ConvertTo-SecureString -String $accessToken -AsPlainText -Force
+            }
+            else {
+                write-host "Version 1 Module Detected"
+                Select-MgProfile -Name Beta
+                $accesstokenfinal = $accessToken
+            }
+            $graph = Connect-MgGraph  -AccessToken $accesstokenfinal 
+            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+        }
+        else {
+            if ($version -eq 2) {
+                write-host "Version 2 module detected"
+            }
+            else {
+                write-host "Version 1 Module Detected"
+                Select-MgProfile -Name Beta
+            }
+            $graph = Connect-MgGraph -scopes $scopes
+            Write-Host "Connected to Intune tenant $($graph.TenantId)"
+        }
+    }
+}    
+
 Write-Host "Downloading and installing all required modules, please accept all prompts"
 
         # Get NuGet
@@ -161,27 +239,14 @@ Write-Host $serial -ForegroundColor Green
 Write-Host "Connecting to Intune Graph"
 
 if ($AppId -ne "") {
-    $body = @{
-        grant_type    = "client_credentials";
-        client_id     = $AppId;
-        client_secret = $AppSecret;
-        scope         = "https://graph.microsoft.com/.default";
-    }
-
-    $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token -Body $body
-    $accessToken = $response.access_token
-
-    $accessToken
-
-    Select-MgProfile -Name Beta
-    $graph = Connect-MgGraph  -AccessToken $accessToken 
+    Connect-ToGraph -Tenant $TenantId -AppId $AppId -AppSecret $AppSecret
     Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
 }
 else {
-    $graph = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+    $graph = Connect-ToGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
     Write-Host "Connected to Intune tenant $($graph.TenantId)"
     if ($AddToGroup) {
-        $aadId = Connect-MgGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
+        $aadId = Connect-ToGraph -scopes Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All
         Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
     }
 }
