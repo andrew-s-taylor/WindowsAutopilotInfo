@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.0.3
+.VERSION 3.0.4
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -19,6 +19,7 @@ v1.0.4 - Suppressed error when importing modules if in use
 v2.0.0 - Added Intune Wipe and Sysprep Parameters
 v3.0.0 - Support added for v2 Graph SDK
 v3.0.3 - Authentication fixes
+v3.0.4 - Wipe fix
 #>
 
 <#
@@ -78,7 +79,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        3.0.3
+Version:        3.0.4
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -168,7 +169,7 @@ Specifies the Azure AD app secret corresponding to the app ID that will be used 
 Specifies the user scopes for interactive authentication.
  
 .EXAMPLE
-Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
+Connect-ToGraph -Tenant $tenantID -AppId $app -AppSecret $secret
  
 -#>
     [cmdletbinding()]
@@ -2141,7 +2142,7 @@ End {
             if ($Wipe) {
                 $deviceserial = $serial
                 ##Find device ID
-                $deviceuri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?$filter=serialNumber eq '$serial'"
+                $deviceuri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$filter=serialNumber eq '$serial'"
                 $deviceid = (Invoke-MgGraphRequest -Uri $deviceuri -Method GET -OutputType PSObject -SkipHttpErrorCheck).value.id
                 write-host "Sending a wipe to $deviceid"
                 ##Send a wipe
