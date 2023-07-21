@@ -1,20 +1,19 @@
+
 <#PSScriptInfo
+
 .VERSION 5.7
-
-.GUID eb8d936a-ec5b-46ac-a8fc-c0750a4d87c5
-
-.AUTHOR Michael Niehaus (Till Version 5.6)
-        Steven van Beek
-.DESCRIPTION This script displays diagnostics information from the current PC or a captured set of logs. This includes details about the Autopilot profile settings; policies, apps, certificate profiles, etc. being tracked via the Enrollment Status Page; and additional information.
-.COMPANYNAME 
+.GUID b45605b6-65aa-45ec-a23c-f5291f9fb519
+.AUTHOR AndrewTaylor, Michael Niehaus & Steven van Beek
+.COMPANYNAME
 .COPYRIGHT GPL
-.TAGS intune endpoint MEM environment winget win32
+.TAGS
 .LICENSEURI https://github.com/andrew-s-taylor/public/blob/main/LICENSE
 .PROJECTURI https://github.com/andrew-s-taylor/public
-.ICONURI 
-.EXTERNALMODULEDEPENDENCIES
-.REQUIREDSCRIPTS 
-.EXTERNALSCRIPTDEPENDENCIES 
+.ICONURI
+.EXTERNALMODULEDEPENDENCIES 
+.REQUIREDSCRIPTS
+.EXTERNALSCRIPTDEPENDENCIES
+.RELEASENOTES
 .RELEASENOTES
 Version 5.7: Fixed LastLoggedState for Win32Apps and Added support for new Graph Module
 Version 5.6: Fixed parameter handling
@@ -43,19 +42,23 @@ Version 3.0: Added the ability to process logs as well
 Version 2.2: Added new IME MSI guid, new -AllSessions switch
 Version 2.0: Added -online parameter to look up app and policy details
 Version 1.0: Original published version
- 
+.PRIVATEDATA
 #>
 
+<# 
 
-<#
-.SYNOPSIS
-Displays Windows Autopilot diagnostics information from the current PC or a captured set of logs.
- 
 .DESCRIPTION
 This script displays diagnostics information from the current PC or a captured set of logs. This includes details about the Autopilot profile settings; policies, apps, certificate profiles, etc. being tracked via the Enrollment Status Page; and additional information.
  
 This should work with Windows 10 1903 and later (earlier versions have not been validated). This script will not work on ARM64 systems due to registry redirection from the use of x86 PowerShell.exe.
  
+
+#> 
+<#
+.SYNOPSIS
+Displays Windows Autopilot diagnostics information from the current PC or a captured set of logs.
+ 
+
 .PARAMETER Online
 Look up the actual policy and app names via the Microsoft Graph API
  
@@ -993,3 +996,5 @@ End {
         Remove-Item -Path "HKCU:\ESPStatus.tmp" -Recurse -Force
     }
 }
+
+
