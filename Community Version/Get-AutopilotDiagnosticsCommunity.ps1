@@ -1,12 +1,20 @@
 <#PSScriptInfo
- 
 .VERSION 5.7
- 
+
 .GUID eb8d936a-ec5b-46ac-a8fc-c0750a4d87c5
- 
+
 .AUTHOR Michael Niehaus (Till Version 5.6)
         Steven van Beek
- 
+.DESCRIPTION This script displays diagnostics information from the current PC or a captured set of logs. This includes details about the Autopilot profile settings; policies, apps, certificate profiles, etc. being tracked via the Enrollment Status Page; and additional information.
+.COMPANYNAME 
+.COPYRIGHT GPL
+.TAGS intune endpoint MEM environment winget win32
+.LICENSEURI https://github.com/andrew-s-taylor/public/blob/main/LICENSE
+.PROJECTURI https://github.com/andrew-s-taylor/public
+.ICONURI 
+.EXTERNALMODULEDEPENDENCIES
+.REQUIREDSCRIPTS 
+.EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
 Version 5.7: Fixed LastLoggedState for Win32Apps and Added support for new Graph Module
 Version 5.6: Fixed parameter handling
