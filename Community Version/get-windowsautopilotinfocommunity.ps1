@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.0.4
+.VERSION 3.0.5
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -20,6 +20,7 @@ v2.0.0 - Added Intune Wipe and Sysprep Parameters
 v3.0.0 - Support added for v2 Graph SDK
 v3.0.3 - Authentication fixes
 v3.0.4 - Wipe fix
+v3.0.5 - Added support for pre-provisioning
 #>
 
 <#
@@ -60,6 +61,8 @@ Reboot the device after the Autopilot profile has been assigned (necessary to do
 Wipe the device after the Autopilot profile has been assigned (sends an Intune wipe for Intune managed devices only).
 .PARAMETER Sysprep
 Kicks off Sysprep after the Autpilot profile has been assigned
+.PARAMETER preprov
+Presses Windows key 5 times for whiteglove pre-provisioning
 .EXAMPLE
 .\Get-WindowsAutoPilotInfo.ps1 -ComputerName MYCOMPUTER -OutputFile .\MyComputer.csv
 .EXAMPLE
@@ -104,7 +107,8 @@ param(
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Assign = $false, 
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Reboot = $false,
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Wipe = $false,
-    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Sysprep = $false
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Sysprep = $false,
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $preprov = $false
 )
 
 Begin {
@@ -2159,6 +2163,15 @@ End {
                 ##Send a sysprep
                 Start-Process -NoNewWindow -FilePath "C:\windows\system32\sysprep\sysprep.exe" -ArgumentList "/oobe /reboot /quiet"
                 write-host "Sysprep sent to $deviceid"
+            }
+            if ($preprov) {
+                # Activating the Windows Key
+                Add-Type -AssemblyName System.Windows.Forms
+                [System.Windows.Forms.SendKeys]::SendWait('^{ESC}')
+                [System.Windows.Forms.SendKeys]::SendWait('^{ESC}')
+                [System.Windows.Forms.SendKeys]::SendWait('^{ESC}')
+                [System.Windows.Forms.SendKeys]::SendWait('^{ESC}')
+                [System.Windows.Forms.SendKeys]::SendWait('^{ESC}')
             }
 
         }
