@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.2
+.VERSION 3.3
 .GUID b608a45b-6cd0-405e-bfb2-aa11450821b5
 .AUTHOR Alexey Semibratov - Updated by Andrew Taylor
 .COMPANYNAME
@@ -12,6 +12,7 @@
 .REQUIREDSCRIPTS
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
+Version 3.3: Changed method to grab devices
 Version 3.2: Second fix
 Version 3.1: Fix
 Version 3.0: Updated to work with SDK v2
@@ -174,6 +175,57 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
     }
 }    
 
+function getdevicesandusers() {
+    $alldevices = getallpagination -url "https://graph.microsoft.com/beta/devicemanagement/manageddevices"
+    $outputarray = @()
+    foreach ($value in $alldevices) {
+        $objectdetails = [pscustomobject]@{
+            DeviceID = $value.id
+            DeviceName = $value.deviceName
+            OSVersion = $value.operatingSystem
+            PrimaryUser = $value.userPrincipalName
+        }
+    
+    
+        $outputarray += $objectdetails
+    
+    }
+    
+    return $outputarray
+    }
+
+    function getallpagination () {
+        <#
+    .SYNOPSIS
+    This function is used to grab all items from Graph API that are paginated
+    .DESCRIPTION
+    The function connects to the Graph API Interface and gets all items from the API that are paginated
+    .EXAMPLE
+    getallpagination -url "https://graph.microsoft.com/v1.0/groups"
+     Returns all items
+    .NOTES
+     NAME: getallpagination
+    #>
+    [cmdletbinding()]
+        
+    param
+    (
+        $url
+    )
+        $response = (Invoke-MgGraphRequest -uri $url -Method Get -OutputType PSObject)
+        $alloutput = $response.value
+        
+        $alloutputNextLink = $response."@odata.nextLink"
+        
+        while ($null -ne $alloutputNextLink) {
+            $alloutputResponse = (Invoke-MGGraphRequest -Uri $alloutputNextLink -Method Get -outputType PSObject)
+            $alloutputNextLink = $alloutputResponse."@odata.nextLink"
+            $alloutput += $alloutputResponse.value
+        }
+        
+        return $alloutput
+        }
+
 Write-Host "Downloading and installing all required modules, please accept all prompts"
 
         # Get NuGet
@@ -253,24 +305,9 @@ else {
 }
 
 Write-Host "Loading all objects. This can take a while on large tenants"
-$aadDevices = Get-MgDevice -All
-##$intuneDevices = Get-IntuneManagedDevice -Filter "contains(operatingsystem, 'Windows')" | Get-MSGraphAllPages
-$uri = "https://graph.microsoft.com/beta/deviceManagement/managedDevices"
-$response = Invoke-MgGraphRequest -Uri $uri -Method Get -OutputType PSObject
-         $devices = $response.value 
-    
-     $devicesNextLink = $response."@odata.nextLink"
+$aadDevices = getallpagination -url "https://graph.microsoft.com/beta/devices"
 
-     while ($null -ne $devicesNextLink) {
-         $devicesResponse = (Invoke-MgGraphRequest -Uri $devicesNextLink -Method Get -OutputType PSObject)
-         $devicesNextLink = $devicesResponse."@odata.nextLink"
-         if ($serialhasspaces -eq 1) {
-             $devices += $devicesResponse.value | Where-Object {$_.serialNumber -eq "$($serial)"}
-         }
-         else {
-             $devices += $devicesResponse.value
-         }
-     }
+$devices = getalldevicesandusers
 
      $intunedevices = $devices | Where-Object {$_.operatingSystem -eq "Windows"}
 
