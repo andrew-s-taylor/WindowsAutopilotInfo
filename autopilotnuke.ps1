@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.3
+.VERSION 3.4
 .GUID b608a45b-6cd0-405e-bfb2-aa11450821b5
 .AUTHOR Alexey Semibratov - Updated by Andrew Taylor
 .COMPANYNAME
@@ -12,6 +12,7 @@
 .REQUIREDSCRIPTS
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
+Version 3.4: Fix in function name
 Version 3.3: Changed method to grab devices
 Version 3.2: Second fix
 Version 3.1: Fix
@@ -307,7 +308,7 @@ else {
 Write-Host "Loading all objects. This can take a while on large tenants"
 $aadDevices = getallpagination -url "https://graph.microsoft.com/beta/devices"
 
-$devices = getalldevicesandusers
+$devices = getdevicesandusers
 
      $intunedevices = $devices | Where-Object {$_.operatingSystem -eq "Windows"}
 
