@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.4
+.VERSION 3.5
 .GUID b608a45b-6cd0-405e-bfb2-aa11450821b5
 .AUTHOR Alexey Semibratov - Updated by Andrew Taylor
 .COMPANYNAME
@@ -12,6 +12,7 @@
 .REQUIREDSCRIPTS
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
+Version 3.5: Function update
 Version 3.4: Fix in function name
 Version 3.3: Changed method to grab devices
 Version 3.2: Second fix
@@ -185,6 +186,10 @@ function getdevicesandusers() {
             DeviceName = $value.deviceName
             OSVersion = $value.operatingSystem
             PrimaryUser = $value.userPrincipalName
+            operatingSystem = $value.operatingSystem
+            AADID = $value.azureActiveDirectoryDeviceId
+            SerialNumber = $value.serialnumber
+
         }
     
     

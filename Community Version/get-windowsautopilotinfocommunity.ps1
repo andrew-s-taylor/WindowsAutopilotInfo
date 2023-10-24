@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.0.5
+.VERSION 4.0.0
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -21,6 +21,7 @@ v3.0.0 - Support added for v2 Graph SDK
 v3.0.3 - Authentication fixes
 v3.0.4 - Wipe fix
 v3.0.5 - Added support for pre-provisioning
+v4.0.0 - Added support to delete existing devices
 #>
 
 <#
@@ -61,6 +62,10 @@ Reboot the device after the Autopilot profile has been assigned (necessary to do
 Wipe the device after the Autopilot profile has been assigned (sends an Intune wipe for Intune managed devices only).
 .PARAMETER Sysprep
 Kicks off Sysprep after the Autpilot profile has been assigned
+.PARAMETER Delete
+Removes the device if it already exists
+.PARAMETER Updatetag
+Updates group tag on existing devices
 .PARAMETER preprov
 Presses Windows key 5 times for whiteglove pre-provisioning
 .EXAMPLE
@@ -82,7 +87,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        3.0.4
+Version:        4.0.0
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -108,7 +113,9 @@ param(
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Reboot = $false,
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Wipe = $false,
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Sysprep = $false,
-    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $preprov = $false
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $preprov = $false,
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $delete = $false,
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $updatetag = $false
 )
 
 Begin {
@@ -1873,6 +1880,61 @@ Get-AutopilotEvent
     }
 }
 
+function getdevicesandusers() {
+    $alldevices = getallpagination -url "https://graph.microsoft.com/beta/devicemanagement/manageddevices"
+    $outputarray = @()
+    foreach ($value in $alldevices) {
+        $objectdetails = [pscustomobject]@{
+            DeviceID = $value.id
+            DeviceName = $value.deviceName
+            OSVersion = $value.operatingSystem
+            PrimaryUser = $value.userPrincipalName
+            operatingSystem = $value.operatingSystem
+            AADID = $value.azureActiveDirectoryDeviceId
+            SerialNumber = $value.serialnumber
+
+        }
+    
+    
+        $outputarray += $objectdetails
+    
+    }
+    
+    return $outputarray
+    }
+
+    function getallpagination () {
+        <#
+    .SYNOPSIS
+    This function is used to grab all items from Graph API that are paginated
+    .DESCRIPTION
+    The function connects to the Graph API Interface and gets all items from the API that are paginated
+    .EXAMPLE
+    getallpagination -url "https://graph.microsoft.com/v1.0/groups"
+     Returns all items
+    .NOTES
+     NAME: getallpagination
+    #>
+    [cmdletbinding()]
+        
+    param
+    (
+        $url
+    )
+        $response = (Invoke-MgGraphRequest -uri $url -Method Get -OutputType PSObject)
+        $alloutput = $response.value
+        
+        $alloutputNextLink = $response."@odata.nextLink"
+        
+        while ($null -ne $alloutputNextLink) {
+            $alloutputResponse = (Invoke-MGGraphRequest -Uri $alloutputNextLink -Method Get -outputType PSObject)
+            $alloutputNextLink = $alloutputResponse."@odata.nextLink"
+            $alloutput += $alloutputResponse.value
+        }
+        
+        return $alloutput
+        }
+
 
 
         # Connect
@@ -2007,6 +2069,14 @@ End {
         }
     }
     if ($Online) {
+
+        Write-Host "Loading all objects. This can take a while on large tenants"
+$aadDevices = getallpagination -url "https://graph.microsoft.com/beta/devices"
+
+$devices = getdevicesandusers
+
+     $intunedevices = $devices | Where-Object {$_.operatingSystem -eq "Windows"}
+
         # Update existing devices by Thiago Beier https://twitter.com/thiagobeier https://www.linkedin.com/in/tbeier/
         
         $importStart = Get-Date
@@ -2014,8 +2084,79 @@ End {
         $computers | ForEach-Object {
             $device = Get-AutopilotDevice | Where-Object {$_.serialNumber -eq "$($serial)"}
             if ($device) {
-                "Updating Existing Device - Working on device serial $($serial)"
-                $imported += Set-AutopilotDevice -Id $device.Id -groupTag $GroupTag
+                write-host "Device already exists in Autopilot"
+                $sanityCheckModel = $device.model
+                $sanityCheckLastSeen = $device.lastContactedDateTime.ToString("dddd dd/MM/yyyy hh:mm tt")
+                Write-Host "AutoPilot indicates model is a $sanityCheckModel, last checked-in $sanityCheckLastSeen."
+                ##Check if $delete has been set
+                if ($delete) {
+                    Write-Host "Deleting device from AutoPilot"
+                    Remove-AutopilotDevice -id $device.id
+                    Write-Host "Device deleted from AutoPilot"
+
+                    
+                    $intunedevicetoremove = $intunedevices | Where-Object {$_.SerialNumber -eq "$($serial)"}       
+                    $intunedeviceid = $intunedevicetoremove.DeviceID
+                    $aaddeviceid = $intunedevicetoremove.AADID    
+                    $aaduri = "https://graph.microsoft.com/beta/devices?`$filter=deviceID eq '$aaddeviceid'"
+                    $aadobjectid = ((Invoke-MgGraphRequest -uri $aaduri -Method GET -outputType PSObject).value).id
+                    write-host "Deleting device from Intune"
+                    Invoke-MgGraphRequest -uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices/$intunedeviceid" -Method DELETE
+                    write-host "Deleted device $serial from Intune"
+
+                    write-host "Deleting Device from Entra ID"
+                    Invoke-MgGraphRequest -uri "https://graph.microsoft.com/beta/devices/$aadobjectid" -method DELETE
+                    write-host "Deleted device from Entra"
+
+                    write-host "Adding back to Autopilot"
+                    $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
+
+                }
+                ##Elseif $grouptag is set
+                elseif ($updatetag) {
+                    "Updating Existing Device - Working on device serial $($serial)"
+                    $imported += Set-AutopilotDevice -Id $device.Id -groupTag $GroupTag
+    
+                }
+                else {
+                    ##Prompt to delete or update
+                    $choice = Read-Host "Do you want to delete or update? (delete/update)"
+
+if ($choice -eq "delete") {
+    # Perform delete action
+    Write-Output "You chose to delete."
+    Write-Host "Deleting device from AutoPilot"
+    Remove-AutopilotDevice -id $device.id
+    Write-Host "Device deleted from AutoPilot"
+
+    
+    $intunedevicetoremove = $intunedevices | Where-Object {$_.SerialNumber -eq "$($serial)"}       
+    $intunedeviceid = $intunedevicetoremove.DeviceID
+    $aaddeviceid = $intunedevicetoremove.AADID    
+    $aaduri = "https://graph.microsoft.com/beta/devices?`$filter=deviceID eq '$aaddeviceid'"
+    $aadobjectid = ((Invoke-MgGraphRequest -uri $aaduri -Method GET -outputType PSObject).value).id
+    write-host "Deleting device from Intune"
+    Invoke-MgGraphRequest -uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices/$intunedeviceid" -Method DELETE
+    write-host "Deleted device $serial from Intune"
+
+    write-host "Deleting Device from Entra ID"
+    Invoke-MgGraphRequest -uri "https://graph.microsoft.com/beta/devices/$aadobjectid" -method DELETE
+    write-host "Deleted device from Entra"
+
+    write-host "Adding back to Autopilot"
+    $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
+
+} elseif ($choice -eq "update") {
+    # Perform update action
+    Write-Output "You chose to update."
+    "Updating Existing Device - Working on device serial $($serial)"
+    $imported += Set-AutopilotDevice -Id $device.Id -groupTag $GroupTag
+
+} else {
+    Write-Output "Invalid choice. Please enter 'delete' or 'update'."
+    exit
+}
+                }
             } else {
         # Add the devices
         "Adding New Device serial $($serial)"
