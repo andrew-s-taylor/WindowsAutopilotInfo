@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.5
+.VERSION 3.6
 .GUID b608a45b-6cd0-405e-bfb2-aa11450821b5
 .AUTHOR Alexey Semibratov - Updated by Andrew Taylor
 .COMPANYNAME
@@ -12,6 +12,7 @@
 .REQUIREDSCRIPTS
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
+Version 3.6: Added None option for assigned user
 Version 3.5: Function update
 Version 3.4: Fix in function name
 Version 3.3: Changed method to grab devices
@@ -484,14 +485,20 @@ if ($devDetail)
     $hash = $devDetail.DeviceHardwareData
     if($Host.UI.PromptForChoice('Add Autopilot Device', 'Do you want to *ADD* the device with serial number ' + $serial +' to Autopilot?', @('&Yes'; '&No'), 1) -eq 0){
         
-        $newuserPrincipalName = Read-Host -Prompt "Change assigned user [$userPrincipalName] (type a new value or hit enter to keep the old one)"
+        $newuserPrincipalName = Read-Host -Prompt "Change assigned user [$userPrincipalName] (type a new value or hit enter to keep the old one.  Enter None to not set a user)"
         if (![string]::IsNullOrWhiteSpace($newuserPrincipalName)){ $userPrincipalName = $newuserPrincipalName }
 
         $newgroupTag = Read-Host -Prompt "Change group tag [$groupTag] (type a new value or hit enter to keep the old one)"
         if (![string]::IsNullOrWhiteSpace($newgroupTag)){ $groupTag = $newgroupTag }
-        
 
+        ##If "None has been selected, don't add assigneduser"
+        
+        if ($userPrincipalName -eq "None") {
+        Add-AutopilotImportedDevice -serialNumber $serial -hardwareIdentifier $hash -groupTag $groupTag
+        }
+        else {
         Add-AutopilotImportedDevice -serialNumber $serial -hardwareIdentifier $hash -groupTag $groupTag -assignedUser $userPrincipalName        
+        }
 
         $SecondsSinceLastSync = $null
         $SecondsSinceLastSync = (New-Timespan -Start (Get-AutopilotSyncInfo).lastSyncDateTime.ToUniversalTime()  -End (Get-Date).ToUniversalTime()).TotalSeconds
