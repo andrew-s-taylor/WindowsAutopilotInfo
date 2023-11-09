@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 4.0.0
+.VERSION 4.0.1
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -22,6 +22,7 @@ v3.0.3 - Authentication fixes
 v3.0.4 - Wipe fix
 v3.0.5 - Added support for pre-provisioning
 v4.0.0 - Added support to delete existing devices
+v4.0.1 - Import Module fix
 #>
 
 <#
@@ -87,7 +88,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        4.0.0
+Version:        4.0.1
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -138,7 +139,7 @@ Begin {
             Write-Host "Installing module microsoft.graph.authentication"
             Install-Module microsoft.graph.authentication -Force -ErrorAction Ignore
         }
-        Import-Module microsoft.graph.authentication -Scope Global
+        #Import-Module microsoft.graph.authentication -Scope Global
 
         # Get Microsoft Graph Groups if needed
         if ($AddToGroup) {
