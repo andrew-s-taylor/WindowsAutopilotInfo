@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 4.0.2
+.VERSION 4.0.3
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -24,6 +24,7 @@ v3.0.5 - Added support for pre-provisioning
 v4.0.0 - Added support to delete existing devices
 v4.0.1 - Import Module fix
 v4.0.2 - Code Signed!!
+v4.0.3 - Timestamp fix
 #>
 
 <#
@@ -2524,17 +2525,17 @@ if ($choice -eq "delete") {
 # A1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdp
 # Q2VydCBUcnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQ
 # BUSv85SdCDmmv9s/X+VhFjANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzEL
-# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTIzMTExNTE3MDIwMFowLwYJKoZI
+# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTIzMTExNTE4NDQxMVowLwYJKoZI
 # hvcNAQkEMSIEIH9NMV8/F7bln4GBadqixQZT0P2ya6MkqhBjBl/gOBwdMA0GCSqG
-# SIb3DQEBAQUABIICAJ91W4w+sdThjvGWg4zA8wdrgdFfWuTOmQzNV9FqnV5CX0Pl
-# olD2gIrdn7jIUvTF1J3u4Lv7adaLpz7LwMnSKiHXbUVSNpoWcAM/Z+G5HQDNneyb
-# CZtkXAJpDoJUXVBU1fSrFcDb/lQjSQPG4oJQ9kfgdMxR3FCYTrrgaZUJwpJJKA+C
-# NAVd1k2yT4vg2hbOrGc9OBu1i2Fz4WrUDrAEueNkz++4wkBur3VlDn8386Pn/Oln
-# pfECluBpHHlnCrBpH08msRYqdl89aLFmGo1eTSqsGwS5X8t/QJzuBv3LVzVy4r+U
-# OyW7eqyWWi6yWRcDl9LDh5UjwPYdixfdS3yaB7M4umSMqDIqnKFK+w8OcyWXzSXT
-# UuLvsm1LTgreJxI6L4g0S39l90nHcEV8HZYrL6goc9fdG2ng+XBp4WOC/hOjIXhx
-# nB3NHoeigfNDB0s1X7Eb/UH0sZVkO9PuicUjOs0QM8UnuH+WuFHPsg9SlOy+GFTE
-# fqnavE/9gTLOVCBxO7fLRXGI9YEsdIZGzBhJ8ruj4brXfSBzLO19q9XiK5i7umK1
-# 8nou2J1t22Gf2z7gtCAOwW6XbIWeHi42aGPBcpetLEsuwC7aw49cENbKYg8szP+l
-# ldf5SHTlYslyr6Fx2CBi8zF1wUKe1dGbCCZi8N+h6BRQoV9apWym8NpVDbty
+# SIb3DQEBAQUABIICAJyMDkMbelSNCdIwN/wKh+8Srw7dKRSwdw3IJGSVEPKUSeqH
+# LIc781mdEKn8FxVxcqRA2sc96HDpiP9W+d6S2aYzcBLV11Wlj6vvE7YumQkBP3PA
+# izby0mUt8n96GFcv/OfMQtCqmV3HAzCDCe3UtXkyz0/2a1FYkg2V5KSwGkK7Tz02
+# mW3lfSIP0O6lWWR0TIkvmtvvRE7kPe+XRSIhL8Z0lmC9SrBx9DAdgbFnUKeoUP/Z
+# LmR5oW1BWFY0HLGb0f7uqe2IStPykTG1BQn2OuA5iDZQmEde6xTMVRshx7loLg2S
+# fBqxlHcvUCihnIhl5Thmn1qlB3x5siq+K7WCDGQYH/qTYE8dWra0mjWwDPldzGEq
+# cdnmWL6N1w9oai42ZPEdbxzVP+ZYztBPSd4gijFomXQzV/LS5PEf7MPkicm4MJav
+# g6sLcMvijSpI7b1OHjIjwq9JQZlBeX99Zzg06hX5uTiooyqON5BOM+7GIeppNDfa
+# Duxnj37v7i/oa8ScAMoy3Cb3T0d1vXtm3InwsGoWFKh40SV8ZVtRADqujmhLmqBE
+# flZPVN7iVa/qfbolAUzsFg1ig6s4+ERpLPy3My8UtBYhpvCnw9Y3juj1wN7t94dC
+# DUZXFOKRn5zdaxqBWesV7CGkttP7qVof0E7sJ/GT1gGH4dtiB00WyWH2QMk0
 # SIG # End signature block
