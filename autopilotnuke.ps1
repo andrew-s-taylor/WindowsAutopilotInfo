@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 3.8
+.VERSION 3.9
 .GUID b608a45b-6cd0-405e-bfb2-aa11450821b5
 .AUTHOR Alexey Semibratov - Updated by Andrew Taylor
 .COMPANYNAME
@@ -12,6 +12,7 @@
 .REQUIREDSCRIPTS
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
+Version 3.9: Fixed error with multi module import
 Version 3.8: Timestamp fix
 Version 3.7: Code Signed
 Version 3.6: Added None option for assigned user
@@ -250,7 +251,7 @@ Write-Host "Downloading and installing all required modules, please accept all p
             Write-Host "Installing module microsoft.graph.authentication"
             Install-Module microsoft.graph.authentication -Force -ErrorAction Ignore
         }
-        Import-Module microsoft.graph.authentication -Scope Global
+        #Import-Module microsoft.graph.authentication -Scope Global
 
             $module = Import-Module microsoft.graph.groups -PassThru -ErrorAction Ignore
             if (-not $module) {
@@ -541,8 +542,8 @@ if($Host.UI.PromptForChoice('Computer name','Do you want to configure a unique n
 # SIG # Begin signature block
 # MIIoGQYJKoZIhvcNAQcCoIIoCjCCKAYCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBEg3jI9fPGv2o1
-# aHGJmZIXgnuPpMHUbqHO3sczM+OFrKCCIRwwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAUyceYFJ6/w0h2
+# Ca0kDbGECibXcDmfVDNF8NP+XIzM06CCIRwwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -724,33 +725,33 @@ if($Host.UI.PromptForChoice('Computer name','Do you want to configure a unique n
 # aWduaW5nIFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDp
 # MA0GCWCGSAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJ
 # KoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQB
-# gjcCARUwLwYJKoZIhvcNAQkEMSIEIJklc+yRyf5VdTls/WZByJBp+tW/EaQdcN9z
-# tfrcOEYuMA0GCSqGSIb3DQEBAQUABIICAJzAmQwxeaX7qqAQ6LEVjnh2ei+Itljq
-# WV6ehXZ9FSEP9mSq+msvdq2JXV4ewCqTaeC596w5txaRTHdvNpo3CsTq6/9EatMc
-# 0YNO3ysvt/xXR3RZ/27wDg1WAACGFyoFHEzLdB9EoFiBKFRgejNs+ITXwtMn+8bN
-# yNLm57/c17OEqYjlbL9pJj2h+tD9xl19suLZNt/L8n31dbm5019zNJc8p4GIMEsA
-# Ix9wz9vvKs5h71a5eYxCClKjoBFLRBDezW2rUtPIvHGOSac2+KT2FsAJaewKrTV4
-# ob1tCBV/XLzsdWnbcAe/hk+d1mVwJcw/zuy/jno1eSQjn4AnAhkkE/2n1TdapenH
-# 6cxUcnD9HIbJtRSLTGHEaHuVnB7lzhl07hDmveEjPNpuV0k/M+kMDsIckR/fOY0P
-# gRfQhAZ8ojYuIKHV6kFJpYloMQ7Bdc0upEZfSK/3D+D9RuhJQbGjHcnvweYTN7wc
-# R23GyQn1A6S3csxhy6C7Zd2l3u46FwOQi+O0+22Qy9NqyUNkOlUHJrPVtkv1T2Ub
-# P6GIba1ot02j9qaku05JjqwMurKn+ignPYS0HCZAn06nN79lB0rkwui+iVND3HYb
-# aaGESG0XEPKoWIrR19xC5gMX0PGSo3jal83FWtLvdywHl3drXwUVex9LAYhf/QUS
-# etWbO4Ho3rhUoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkG
+# gjcCARUwLwYJKoZIhvcNAQkEMSIEIHJEgrWKGri6p4T+J6BMGerLKitGp61sKwx+
+# QsBqTR8gMA0GCSqGSIb3DQEBAQUABIICACaitdr082+yomX6FAn1utf3mJ8Lt86z
+# JJnAK0h1eJHyK6QAleyv/GnPOf5eGyG4c/LbgWHtTynA0yFefZcZO5Yblo65CXhp
+# HTx0yfr49xxWQOUiGnYenPjuvxaVqgi8Pk53TexwyjBV1tZ11u2EqWSB0Y6JuY0b
+# 2YdMR8LIvZ/kNWao2piW4lJHsZTXdeUvJsOMrMBMTvatA12SYpAbqD8WHuczGlE5
+# wI0+BnQ7Ip+KYDv4keSgexAlGmHaPeIf56WUmDWMzWd5ydPZ6+w1yQFN/8oSINIe
+# dfn1bubfsQjuY83SxFnEDD6JUtjcqitF4otJyrxhxt/5o0eqZ4yDu4wT0bV2hFEK
+# rXDLcMgyh6/oyZHvSC90O5x1Ctn/1HOrvjDnTLD1zMkZAGaCxVNusrd4pmbVEZ9P
+# KoUChOgl9MtA91o9QwgOSGHc9bfM7TDJ7B4WHEvgjOPe4beDAVYkIac4GJMX0G3D
+# +Ebd2toVywekBOwttn/Z7jpcoqInvq8tjO3xBs+8piyst42XnnR97xGhq/Fk9ROK
+# mdwkN+654yMZaJ9zpTQwJ79WlCGLw6cH1jlehf8YrRCmU2U7nAq9g8LKojUb7ATX
+# wjKhVsi4qGP7WE28FOtpPmxKvIm20GdxBOU37drONamEl8H0UWJUSRFmaXMN4E3b
+# aSNS2roxgSZAoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkG
 # A1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdp
 # Q2VydCBUcnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQ
 # BUSv85SdCDmmv9s/X+VhFjANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzEL
-# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTIzMTExNTE4NDQxM1owLwYJKoZI
-# hvcNAQkEMSIEIDnl0ohEPeon6GFPCAlskPCZu9bzuIswARqjvG/mTQaGMA0GCSqG
-# SIb3DQEBAQUABIICAGZWcOxGDjaTkM3FyYT5mepcNkD1koDhOPhx5bJ0NbxtD4RJ
-# kB6gzZkY++qLaJ0G6P/NQYM/BLSx3HkmPq+ApJlOHPhH66r3n2UOHcgy2JXGNYdY
-# Y0gizPM0e4J4zNS/3sSKWolnrr6F7GcwB7MJMlSF7THfEmNIxWoQtMRrCrqL8ksl
-# rjlx5BKvj5yJuN2bXroNUYJEodwCDBNehVoK6QE7o/SVDDKAJQor9/KWnxkQW9ux
-# C5W+YaSTNpO4ecf85xWV6HrBDNo/2YPlz5dNDjzbC6rvfs5Nvj0YVva5YV7+bqSZ
-# 6uHvtf2haJL7Wi00dX5M7dSxOLNRT80vHZCoXq9GRBzpI/ku9+2JcOiIlQk3mY9C
-# 7FQaLEp75mVlyMiojlCAPn8cL5WFujEr4E8NE2qDiR872gNGlYdEzPavgdTlhj/6
-# w+QDNezNObBnYHGOZI5R/X77bu7OENyOcZ0WjFbnBbs18ixAM45fiS64Bqrz1wQt
-# hNVnA9bPm3JQRIIDiL6k857UVq7kAgumc7b6xrEXsede28tFw9vRiA+qUNEM8Zyv
-# 10K6pcdIpYemu4ZfwN4N8vyIji5plLqfdVfjzIFSfFRo/JAwI1NmgPIK4ntPZamx
-# 2na2NA6cdiMLo+CiIA7tUEkvGTzNcOXJ9SOdqwFpEfvC6AGgn/z+ik6A0TUS
+# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTIzMTExNzA5MTAwOFowLwYJKoZI
+# hvcNAQkEMSIEIAk3phpI9IJkmsB3N6e8/+VwHUQjuTnlxdGfF7EBimfsMA0GCSqG
+# SIb3DQEBAQUABIICAGouWqqdcYqnfSB2OAeDmCRN5jNxXuQzFdb9P2L65LO0ISqX
+# 5tVpoi70cnyX3F6OIAShbPNvdyQ4dlpVyMJ34fexbWRCsTUkbI/F+lRXV/iwOQdB
+# kvFZnNxFVX4+sAlXasE0gK/C2yabcb/fW2LVYe9NRFlv+/rnpS6rijtpwdVbPsin
+# iJygk7nDOkOIOVondbCdGGzLD2BCPn50lfw3WqmwzcEa0Z5BFgUiHl7rhOfysmmZ
+# 0GaLdW/CKqY9LVMa3nFXE8I6vyGRxHFXjm8PcBSQWP3F7U1owQ6u03W9nU6cj4B+
+# ZGbN5iYMxGZ51As54YpnhgcQdekCncsT2lfy+/mjufe490LX2KY7LEcufUZaLbbj
+# dEktm2Y7FFQ8UYt8AIOfov+QG7VvkHhyX+L201tMP1wP+E9MFSKAc6ZLS9H40CQv
+# B1Rzj797f/Cnd6e0hDU2GoORTLNLpV49fvmyY6bhfJR7qKZJe620AT/44fbroVCb
+# xIzBwsbWfsez5ax69N8nTg81TBNwDF2DkTHZ3pdi0LAKzCHvBoGf3uusrIdemDu1
+# NDVEwxLuUmOPPSUf1yZIbuwk4FyCyUepM9gvuw2A1zjP495ViqbDsA58rA26Zrkb
+# l6Q2wtPR/z6uKMrXfVf1+HTxYHGPuKm8DlYCnvnu+AlT8DYcNUe/411Q3uIT
 # SIG # End signature block
