@@ -1,6 +1,6 @@
-$ClientID = "fda1052c-fe80-4345-a682-b9d25177d7fc"
-$TenantID="46cd9aae-0d0e-45e1-83b5-154b8efeb92f"
-$ClientSecret="3rT8Q~LMCIFzk~NenW6S8iCdcwKvjBZJIQ~HXcji"
+$ClientID = ""
+$TenantID=""
+$ClientSecret=""
 
 $token_Body = @{
     Grant_Type    = "client_credentials"
