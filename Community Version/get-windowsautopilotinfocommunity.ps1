@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 4.0.4
+.VERSION 4.0.5
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -26,6 +26,7 @@ v4.0.1 - Import Module fix
 v4.0.2 - Code Signed!!
 v4.0.3 - Timestamp fix
 v4.0.4 - Updated devices grab
+v4.0.5 - Added newdevice parameter for quicker imports
 #>
 
 <#
@@ -119,7 +120,8 @@ param(
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Sysprep = $false,
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $preprov = $false,
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $delete = $false,
-    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $updatetag = $false
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $updatetag = $false,
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $newdevice = $false
 )
 
 Begin {
@@ -140,7 +142,7 @@ Begin {
         $module = Import-Module microsoft.graph.authentication -PassThru -ErrorAction Ignore
         if (-not $module) {
             Write-Host "Installing module microsoft.graph.authentication"
-            Install-Module microsoft.graph.authentication -Force -ErrorAction Ignore
+            Install-Module microsoft.graph.authentication -Force -ErrorAction Ignore -MaximumVersion 2.9.1
         }
         #Import-Module microsoft.graph.authentication -Scope Global
 
@@ -2074,6 +2076,23 @@ End {
     }
     if ($Online) {
 
+        ##Check if $newdevice is false
+
+        if ($newdevice) {
+            $importStart = Get-Date
+            $imported = @()
+            $computers | ForEach-Object {
+                        # Add the devices
+        "Adding New Device serial $($serial)"
+        $importStart = Get-Date
+        $imported = @()
+        $computers | ForEach-Object {
+            $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
+        }
+    }
+}
+    else {
+        
         Write-Host "Loading all objects. This can take a while on large tenants"
 # $aadDevices = getallpagination -url "https://graph.microsoft.com/beta/devices"
 
@@ -2172,7 +2191,7 @@ if ($choice -eq "delete") {
             }
         }
         
-
+    }
 
         # Wait until the devices have been imported
         $processingCount = 1
@@ -2327,8 +2346,8 @@ if ($choice -eq "delete") {
 # SIG # Begin signature block
 # MIIoGQYJKoZIhvcNAQcCoIIoCjCCKAYCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCB6Lw9iJyz6U5Cg
-# e8vCMP5MxU1I2hmj0kWS1gcBvhICmqCCIRwwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBXjVsp4jTG8Q4w
+# gMMpnIHHAoLR7ULZGC/Xllx+GpGsxKCCIRwwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2510,33 +2529,33 @@ if ($choice -eq "delete") {
 # aWduaW5nIFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDp
 # MA0GCWCGSAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJ
 # KoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQB
-# gjcCARUwLwYJKoZIhvcNAQkEMSIEIPKf2nNekn8HCK/fSnA1WJOvLwT0tg5eNKDc
-# ioLjkKqlMA0GCSqGSIb3DQEBAQUABIICAAWDGpvlM3hlOobj2yBIER+mH+O1ZHYh
-# xO7oRdH7kGaI9nTCjkK9qfVbrpGL4l/kuDWrZej4d1eIwB489re24RAF5Jc4gstu
-# Kl7OFVhwGrPxsEP6rGKHLUJ+SfefTNRwbcUSkiE4UP+8+LtvtBjEdtzRJQ0wCYqe
-# Io4NSRaYx6wH25TC5TRE4p9K8Xveil3SLvubG70n02lRDzcDmaBMJHs73gfQet67
-# PON3EOEbjfOJBjAMRKFlH4y14iRniqOFxqS8ScRmHHtx0QD5RPRo7853eC8lkr+X
-# aRNeKHRxFMznZ5Rg2bvlMB6EdMBdcODsvc5uhVsgs8BnPivo8Ez0N+nEMx9MSdZ8
-# jfpBbg/RN3jw01Rai1bqeyg3HPkzJ2Muv9I/nTpkrrjNMYDemDHYEuc4DNG+c+DE
-# 0dsMnx/Y5uwbHYdLg2tiesdwapryJ9l6cWLCWZYdzDirxzmkuSqRuR5XC9e/fw9b
-# EUd9WSZjLVpJJm3Eq8aBIsyQnHuhcx0JzUId7Ko9eiWk9sqvzHU6JhmJm4O/ouJQ
-# lVAgJR7MytkV8oCCkPdRxWyMMWQkZMYjZv1bD5fs4ElPevr1iPbBIZ2W3WovBTc+
-# /MAGlkGuoBEbxo60FsNsJhV95SDiz3MfTju4v+s+kc7vg0bpnpAEjwylXxBIdhPG
-# uakxmZzfuJBmoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkG
+# gjcCARUwLwYJKoZIhvcNAQkEMSIEIGc+jl8H32ZxvUxl1b0oMkAfeunNQPKpYQNz
+# NhPTSrpAMA0GCSqGSIb3DQEBAQUABIICAKWD1oqRHRz04wL0edNuddRFf/FvKQuE
+# XQjk7B+uW4e5Djy2apOUk1F+1y5QftbWEG2jGqGEnWQEqabpSWkwXfgy51XXJVqW
+# K6neAPbhkIhYtH/2Mmyuz1CDpAgaKJ3hKXnQN/F8npltpyBb/DKIBa5xri788rec
+# zA9xk4dnnR8+98LikNn5t5vutNwCwQ9QD0GRR86r69zEEy7zUR6mOJLSrpewrhcF
+# NVhNWDYjbP9UWpctRzDQvuBDXior1ucHuKSa3lWOLytlSq70otUSXVaRyzEyvg/x
+# KDeCRGaY9lJwHVgwMffXdUpP05ynV5yZAq/10XxK5P9KB3d7XOSEkb4cVJyf6xso
+# 3FDMN9ikqalKv+0ZMRVD46LAX9oXSWEJCyOYaBnw3XP8tROsDgOcwS85B7zeN/Ro
+# w67Ous1ev2opUJRb4yOSoXf7m54g/kqKmjgSc8noFhsnbubjHAydGEmXjATNPOaC
+# s+OWBgQl5wKC0tNCE0AB/sQ+YL0A2kXL5F9LpW8hhoSaLr6n9zpKSDDu6yfjN88h
+# ZaTs2Vfmxho81BA12lQz7WZmOPAZZ/UOHfvILd7Ku0XuU6hi5+zbx8gxsHqM7qg8
+# UO4MYSpvA3wXjyImvRYkrsLMy3rxfiLA6KMEtgfr54BfMQ3Xvn4ofD3ISUhnP1QQ
+# iJG9DPtdcDAsoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkG
 # A1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdp
 # Q2VydCBUcnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQ
 # BUSv85SdCDmmv9s/X+VhFjANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzEL
-# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTIzMTIxMTE3NDY1N1owLwYJKoZI
-# hvcNAQkEMSIEIH7tN3njBb58cKKZsDXg1tQEF4ThbEO83YHq0u2gumw3MA0GCSqG
-# SIb3DQEBAQUABIICAAaKhQpOta2YlkJL0JqwD7kWC1etsWrDKlJIohrORwekM7Hl
-# qXwDL9TORhTvRJ2xX7rYbgIgJQVI0CZe2ABzpUKfaNVWBVat+iFIBaWVFff6lebV
-# nZAzWPg+ZiAdc326STrb/26JemtBqboz3Gf8yegmYhmV0jcMYXnSPnSzG8tRFw1j
-# L8Ky47P2VL0znGDPB0HkiRBIA88GJ8KAT4W+WNI6jWlX2a0b9Nj1OulLPZQ9PMxt
-# tn4UFcm8YEvs/a60e6GKWAawHUhUbMxfI0KdX8+mHH/fQYJBYBKEYQfgUKuQuGhC
-# 4i5MWjbmwR/4T+piWrpONRfJDHqCkz2XAdPuGQx+QsVtz5kt0g+v8mY/CWBQIOuF
-# iPI7tCflAwXvvbxy8tJNjJn4yClO3rRKg2+vMQAiDDNCEl9Fl61v3oUWoCpGTNZy
-# p58gsyROhkj/3XsPl1YGPLlLWa1h1DRqP0Cb5tYsWeqrzyPo4DZ0O7EUHDgOr2iF
-# xQy3lp/efaEksZxirHU4oSe+25V1owH7lhzgucmgl4LW0IeTfi/0qQAteiAfVbXo
-# UTtV10fTloIMTZGhnpeerRBNYIQMonc181l0DhmwLkd5Zr7+zu9Apx5S+w62hhzP
-# 6AQs8utsoWHMAb3mHK1soLQgH+nppS94syvBpQ4c+3QOCUERFvsDZE1lYWkO
+# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTIzMTIxMTIxMDIwMlowLwYJKoZI
+# hvcNAQkEMSIEIGk/LXPxa+o93RWY13aLVmbSs9S9pK7gIFb9R1804mAuMA0GCSqG
+# SIb3DQEBAQUABIICAGC3kBwyepnhiG9B8jAaATajFljUMcxqpcPwf8YeD+z/gvw0
+# 5Xr92Z2rVvBFdwyNACVhFmdTX2SLVYS+Oy23kclvPMkv916SK1vEgyLuE83YbXIg
+# z1quue/CxHT9sGKnDBvZ/mcn7Pw+FFzamok7iNVb9+15mMXVemvGRRfUxNeatB9z
+# xgS7PrRv6MSN5bB27Jz3G9XpCTmsesoPopZ1IbAnmt+q0mpHKCvP6xCpqAucdByu
+# r9haVSua01cXG8xPT3LPbT5Ao38of/p5Wl49LnNQFUOuNiUgZJmyPdRXUufeUnaA
+# nZIONWS6lqQj230xYCi9dddf8BB2BTeSnfV+wtshzRSUzOEWx8R7kWe9QSRAVTFp
+# +N7RPsbOi5y9aEJY/RY0U83YDdN6TwhDB53+Xmaz915ACre8b439/kNqxPWY2hvB
+# RrGv3gTc1eBns+lGOH6GRFRJYkx3njWtFa1BskqtXfdjRA6hHTqvU+buACjAn8pU
+# j0MGS29ZrRNGAj1MKFIZTiXyWCWApwABuPQ8hZoc0bt+KkwLRFL7AEgqbPyVCF0R
+# e5U+OsszSa+qrHp3r792YzyvX9VZN0Osvt1GouOYgE9Q1SvNbURmqO9EhNzCAZ2b
+# g6Sl/vYxxnq/TnJvDcIKZ61UeEfhLdLOgWE2oVEP9yqKFiTGQ1b8NQyvF+a2
 # SIG # End signature block
