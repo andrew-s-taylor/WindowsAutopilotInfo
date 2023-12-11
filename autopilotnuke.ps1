@@ -315,7 +315,7 @@ else {
 }
 
 Write-Host "Loading all objects. This can take a while on large tenants"
-$aadDevices = getallpagination -url "https://graph.microsoft.com/beta/devices"
+ $aadDevices = getallpagination -url "https://graph.microsoft.com/beta/devices"
 
 $devices = getdevicesandusers
 
