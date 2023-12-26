@@ -798,6 +798,8 @@ Get-AutopilotProfile | ConvertTo-AutopilotConfigurationJSON
             $oobeConfig += 1024
             if ($_.language) {
                 $json.Add("CloudAssignedLanguage", $_.language)
+                # Use the same value for region so that screen is skipped too
+                $json.Add("CloudAssignedRegion", $_.language)
             }
         }
         if ($oobeSettings.deviceUsageType -eq 'shared') {
