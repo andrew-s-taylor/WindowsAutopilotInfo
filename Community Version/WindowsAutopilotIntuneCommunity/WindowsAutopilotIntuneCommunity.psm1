@@ -1156,7 +1156,7 @@ New-AutopilotProfile -mode UserDrivenAAD -displayName "My testing profile" -Desc
     "deviceNameTemplate": "$OOBE_NameTemplate",
     "deviceType": "windowsPc",
     "enableWhiteGlove": $(BoolToString($OOBE_EnableWhiteGlove)),
-    "hybridAzureADJoinSkipConnectivityCheck": $(BoolToString($OOBE_SkipConnectivityChecks)),
+    "hybridAzureADJoinSkipConnectivityCheck": $(BoolToString($OOBE_SkipConnectivityCheck)),
     "outOfBoxExperienceSettings": {
         "hidePrivacySettings": $(BoolToString($OOBE_hidePrivacySettings)),
         "hideEULA": $(BoolToString($OOBE_HideEULA)),
