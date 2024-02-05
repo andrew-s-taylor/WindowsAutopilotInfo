@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 4.0.5
+.VERSION 4.0.6
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -27,6 +27,7 @@ v4.0.2 - Code Signed!!
 v4.0.3 - Timestamp fix
 v4.0.4 - Updated devices grab
 v4.0.5 - Added newdevice parameter for quicker imports
+v4.0.6 - Region fix
 #>
 
 <#
@@ -92,7 +93,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        4.0.2
+Version:        4.0.6
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -836,6 +837,8 @@ Get-AutopilotProfile | ConvertTo-AutopilotConfigurationJSON
             $oobeConfig += 1024
             if ($_.language) {
                 $json.Add("CloudAssignedLanguage", $_.language)
+                # Use the same value for region so that screen is skipped too
+                $json.Add("CloudAssignedRegion", $_.language)
             }
         }
         if ($oobeSettings.deviceUsageType -eq 'shared') {
@@ -2346,8 +2349,8 @@ if ($choice -eq "delete") {
 # SIG # Begin signature block
 # MIIoGQYJKoZIhvcNAQcCoIIoCjCCKAYCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBXjVsp4jTG8Q4w
-# gMMpnIHHAoLR7ULZGC/Xllx+GpGsxKCCIRwwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCD/0sA2Z6seHDwb
+# iAR+XKg5+GYmjqFelOgTkfMLqQWXr6CCIRwwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2529,33 +2532,33 @@ if ($choice -eq "delete") {
 # aWduaW5nIFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDp
 # MA0GCWCGSAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJ
 # KoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQB
-# gjcCARUwLwYJKoZIhvcNAQkEMSIEIGc+jl8H32ZxvUxl1b0oMkAfeunNQPKpYQNz
-# NhPTSrpAMA0GCSqGSIb3DQEBAQUABIICAKWD1oqRHRz04wL0edNuddRFf/FvKQuE
-# XQjk7B+uW4e5Djy2apOUk1F+1y5QftbWEG2jGqGEnWQEqabpSWkwXfgy51XXJVqW
-# K6neAPbhkIhYtH/2Mmyuz1CDpAgaKJ3hKXnQN/F8npltpyBb/DKIBa5xri788rec
-# zA9xk4dnnR8+98LikNn5t5vutNwCwQ9QD0GRR86r69zEEy7zUR6mOJLSrpewrhcF
-# NVhNWDYjbP9UWpctRzDQvuBDXior1ucHuKSa3lWOLytlSq70otUSXVaRyzEyvg/x
-# KDeCRGaY9lJwHVgwMffXdUpP05ynV5yZAq/10XxK5P9KB3d7XOSEkb4cVJyf6xso
-# 3FDMN9ikqalKv+0ZMRVD46LAX9oXSWEJCyOYaBnw3XP8tROsDgOcwS85B7zeN/Ro
-# w67Ous1ev2opUJRb4yOSoXf7m54g/kqKmjgSc8noFhsnbubjHAydGEmXjATNPOaC
-# s+OWBgQl5wKC0tNCE0AB/sQ+YL0A2kXL5F9LpW8hhoSaLr6n9zpKSDDu6yfjN88h
-# ZaTs2Vfmxho81BA12lQz7WZmOPAZZ/UOHfvILd7Ku0XuU6hi5+zbx8gxsHqM7qg8
-# UO4MYSpvA3wXjyImvRYkrsLMy3rxfiLA6KMEtgfr54BfMQ3Xvn4ofD3ISUhnP1QQ
-# iJG9DPtdcDAsoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkG
+# gjcCARUwLwYJKoZIhvcNAQkEMSIEIC/N3SWCewjUcb2ROl7UWLV/VewnQTKkoAmq
+# KKqIiZDHMA0GCSqGSIb3DQEBAQUABIICAHAP9r97SlKaqfeZr0ivBntl8Kyv8jE+
+# HPErbeOUiDEuWDH2DAQYi4poPFMiDt/y6zzDh7Z0HFK6K2QZKXmXzKTNzCarPnmT
+# 3tf8Q3z/CJtwKg6BlRTMX3j1kGtUjM2uWikMjc8x6CzrkiWXWpnnna9YQEL2KeKO
+# 30A2jxKMIAOkGGzWG+KMKCuIEhi02/ZY4NN5WIVG5UniTVX2aVNX4kPQYuC+eqje
+# bSsXw/u55NJaEcjKhY3qizv+bEWqMnCHCQuHPW3zEl0F9lV8NzmDAj+Q1fH0cWwl
+# /I1//IeQCQCJgDIwcVCCdpZYso6ikKINpksgHgUr0cp9RA70qWTapULCd33JRo1D
+# roDKYYJZ4S32kAsechR+bGfpLePyTW6Ns7/AKEq0Wb84KyclzzxaXvKy8c9SVrL+
+# w2ghrDp9LLDZvRWYAUU6GPJXazFjUH1f5c8HesTiuydLie5MVFy+Or52yOqy/fmF
+# wRK4wNWLuCvktm2VFZ0IGHsoNodCq4aFbUvTCm3sDCPA5q5CEqezMKpMIsfKOfdS
+# 3BxbCKLOLFHBUsqM1KC6L9stA0aCl97Mm/8HsWkx6aVDUwNhAwyPkoQdzkChadQi
+# pcO3FM5kzyAOpoOURu5FYFuS2Ip3lYduDMkF1fvUDMuVgcTIqv6cBrTFmb0IxyAz
+# 8GiulHjlR0ZGoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkG
 # A1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdp
 # Q2VydCBUcnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQ
 # BUSv85SdCDmmv9s/X+VhFjANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzEL
-# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTIzMTIxMTIxMDIwMlowLwYJKoZI
-# hvcNAQkEMSIEIGk/LXPxa+o93RWY13aLVmbSs9S9pK7gIFb9R1804mAuMA0GCSqG
-# SIb3DQEBAQUABIICAGC3kBwyepnhiG9B8jAaATajFljUMcxqpcPwf8YeD+z/gvw0
-# 5Xr92Z2rVvBFdwyNACVhFmdTX2SLVYS+Oy23kclvPMkv916SK1vEgyLuE83YbXIg
-# z1quue/CxHT9sGKnDBvZ/mcn7Pw+FFzamok7iNVb9+15mMXVemvGRRfUxNeatB9z
-# xgS7PrRv6MSN5bB27Jz3G9XpCTmsesoPopZ1IbAnmt+q0mpHKCvP6xCpqAucdByu
-# r9haVSua01cXG8xPT3LPbT5Ao38of/p5Wl49LnNQFUOuNiUgZJmyPdRXUufeUnaA
-# nZIONWS6lqQj230xYCi9dddf8BB2BTeSnfV+wtshzRSUzOEWx8R7kWe9QSRAVTFp
-# +N7RPsbOi5y9aEJY/RY0U83YDdN6TwhDB53+Xmaz915ACre8b439/kNqxPWY2hvB
-# RrGv3gTc1eBns+lGOH6GRFRJYkx3njWtFa1BskqtXfdjRA6hHTqvU+buACjAn8pU
-# j0MGS29ZrRNGAj1MKFIZTiXyWCWApwABuPQ8hZoc0bt+KkwLRFL7AEgqbPyVCF0R
-# e5U+OsszSa+qrHp3r792YzyvX9VZN0Osvt1GouOYgE9Q1SvNbURmqO9EhNzCAZ2b
-# g6Sl/vYxxnq/TnJvDcIKZ61UeEfhLdLOgWE2oVEP9yqKFiTGQ1b8NQyvF+a2
+# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTIzMTIyNzExNDQ0NFowLwYJKoZI
+# hvcNAQkEMSIEIIOT6e/f9QNHOFCmXMcoemTQauCk0sfjxMKq3eeu5KPvMA0GCSqG
+# SIb3DQEBAQUABIICAIOHebKSMj/2nms+ZDv98tRNGaQyEuSFTF4lVKO/Rievi9fH
+# +2la5zfa+QS7jW/uQMDcm4b/GsC36F7a7bcZQsJKmmsY6he/tJP9Pl9MAlyW/8IO
+# F/iwHbdNhw1NtiRNtQ/g6PIQGwZ3DSNG5vIG7IKipNUp/Z6RoJHZMSVsAk512KqL
+# 5Sp+mAO+BJlfO4wxV+4leR74u6OLDM4YOucO5Y8jboUMA3PebKWSANjkojNT3+aW
+# FPCptthasUigCXmn6RhC7Yww+X5SeDoxplHu/Mm3TKRFdWx46tlLljDpXVR0RPEp
+# bIGWD+PGxEnyCkphqnTz4e8ZuJWcU1rGdbMD/xgcD0Oocll8XtjJROKLCcFYAA+8
+# QAZ42npekLZuvD/iO1hDNAQ/JBQGoomdPJ3v+lvNxQnlUNuiRITn0OSdi6i7qFhB
+# ySGXitsX3qFUSvWFmIyW9qeYiACi6X6sgdnNC7OEiqqUkZe+fU3kjclyzhnjaCOO
+# 6zmbR3aGrjHpgH8FnONKUCqFQC9RwQK+hrvSWw+n1SpHQkddNr+h9oe7L7CdHuR+
+# iBf4aIqJieuvS2xR3o7VWK1wwxcxnRaPP5AlDz1rE8XN+MXMJMuQXOAIdEnjy4as
+# T4sy0HRhOP/1TYf0LEIzeURYbxO4YwKXzKPkuayqYAsyEMH7RQdLDgo8xsyz
 # SIG # End signature block
