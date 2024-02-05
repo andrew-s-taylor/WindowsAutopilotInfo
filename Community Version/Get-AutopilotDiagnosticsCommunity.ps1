@@ -1,7 +1,7 @@
 
 <#PSScriptInfo
 
-.VERSION 5.9
+.VERSION 5.10
 .GUID b45605b6-65aa-45ec-a23c-f5291f9fb519
 .AUTHOR AndrewTaylor, Michael Niehaus & Steven van Beek
 .COMPANYNAME
@@ -15,6 +15,7 @@
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
 .RELEASENOTES
+Version 5.10: Additional logic for DO downloads, MSI product names
 Version 5.9: Code Signed
 Version 5.7: Fixed LastLoggedState for Win32Apps and Added support for new Graph Module
 Version 5.6: Fixed parameter handling
@@ -289,8 +290,14 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
         # See if there is already an entry for this policy and status
         $found = $script:observedTimeline | ? { $_.Detail -eq $detail -and $_.Status -eq $status }
         if (-not $found) {
+            # Apply a fudge so that the downloading of the next app appears one second after the previous completion
+            if ($status -like "Downloading*") {
+                $adjustedDate = $date.AddSeconds(1)
+            } else {
+                $adjustedDate = $date
+            }
             $script:observedTimeline += New-Object PSObject -Property @{
-                "Date"   = $date
+                "Date"   = $adjustedDate
                 "Detail" = $detail
                 "Status" = $status
                 "Color"  = $color
@@ -340,6 +347,12 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
                     elseif ($Online) {
                         $found = $apps | ? { $_.ProductCode -contains $msiKey }
                         $msiKey = "$($found.DisplayName) ($($msiKey))"
+                    } elseif ($currentUser -eq "S-0-0-00-0000000000-0000000000-000000000-000") {
+                        # Try to read the name from the uninstall registry key
+                        if (Test-Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$msiKey") {
+                            $displayName = (Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$msiKey").DisplayName
+                            $msiKey = "$displayName ($($msiKey))"
+                        }
                     }
                     if ($status -eq 70) {
                         if ($display) { Write-Host " MSI $msiKey : $status ($($officeStatus[$status.ToString()]))" -ForegroundColor Green }
@@ -447,6 +460,9 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
 
         Begin {
             if ($display) { Write-Host "Sidecar apps:" }
+            if ($null -eq $script:DOEvents -and (-not $script:useFile)) {
+                $script:DOEvents = Get-DeliveryOptimizationLog | Where-Object { $_.Function -match "(DownloadStart)|(DownloadCompleted)" -and $_.Message -like "*.intunewin*" }
+            }
         }
 
         Process {
@@ -491,6 +507,12 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
                     }
                     if ($status -ne "1") {
                         RecordStatus -detail "Win32 $win32Key" -status $espStatus[$status.ToString()] -color "Yellow" -date $currentKey.PSChildName
+                    }
+                    if ($status -eq "2") {
+                        # Try to find the DO events.
+                        $script:DOEvents | Where-Object { $_.Message -ilike "*$appGuid*" } | ForEach-Object {
+                            RecordStatus -detail "Win32 $win32Key" -status "DO $($_.Function.Substring(32))" -color "Yellow" -date $_.TimeCreated.ToLocalTime()
+                        }
                     }
                 }
             }
@@ -576,6 +598,31 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
 
     }
 
+    Function TrimMSI() {
+	param (
+		[object] $event,
+		[string] $sidecarProductCode
+	)
+
+    # Fix up the name
+	if ($event.Properties[0].Value -eq $sidecarProductCode) {
+		return "Intune Management Extension"
+	} elseif ($event.Properties[0].Value.StartsWith("{{")) {
+		$r = $event.Properties[0].Value.Substring(1, $event.Properties[0].Value.Length - 2)
+	} else {
+		$r = $event.Properties[0].Value
+	}
+
+	# See if we can find the real name
+    if (Test-Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$r") {
+		$displayName = (Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$r").DisplayName
+        return "$displayName ($($r))"
+    } else {
+    	return $r
+    }
+
+    }
+
     Function ProcessEvents() {
 
         Process {
@@ -592,10 +639,10 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
 
             # Process device management events
             if ($script:useFile) {
-                $events = Get-WinEvent -Path "$($env:TEMP)\ESPStatus.tmp\microsoft-windows-devicemanagement-enterprise-diagnostics-provider-admin.evtx" -Oldest | ? { ($_.Message -match $productCode -and $_.Id -in 1905, 1906, 1920, 1922) -or $_.Id -in (72, 100, 107, 109, 110, 111) }
+                $events = Get-WinEvent -Path "$($env:TEMP)\ESPStatus.tmp\microsoft-windows-devicemanagement-enterprise-diagnostics-provider-admin.evtx" -Oldest | ? { ($_.Id -in 1905, 1906, 1920, 1922) -or $_.Id -in (72, 100, 107, 109, 110, 111) }
             }
             else {
-                $events = Get-WinEvent -LogName Microsoft-Windows-DeviceManagement-Enterprise-Diagnostics-Provider/Admin -Oldest | ? { ($_.Message -match $productCode -and $_.Id -in 1905, 1906, 1920, 1922) -or $_.Id -in (72, 100, 107, 109, 110, 111) }
+                $events = Get-WinEvent -LogName Microsoft-Windows-DeviceManagement-Enterprise-Diagnostics-Provider/Admin -Oldest | ? { ($_.Id -in 1905, 1906, 1920, 1922) -or $_.Id -in (72, 100, 107, 109, 110, 111) }
             }
             $events | % {
                 $message = $_.Message
@@ -616,10 +663,10 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
                     107 { $detail = "Offline Domain Join"; $message = "Successfully applied ODJ blob" }
                     100 { $detail = "Offline Domain Join"; $message = "Could not establish connectivity"; $color = "Red" }
                     72 { $detail = "MDM Enrollment" }
-                    1905 { $message = "Download started" }
-                    1906 { $message = "Download finished" }
-                    1920 { $message = "Installation started" }
-                    1922 { $message = "Installation finished" }
+                    1905 { $detail = (TrimMSI $event $productCode); $message = "Download started" }
+                    1906 { $detail = (TrimMSI $event $productCode); $message = "Download finished" }
+                    1920 { $detail = (TrimMSI $event $productCode); $message = "Installation started" }
+                    1922 { $detail = (TrimMSI $event $productCode); $message = "Installation finished" }
                     { $_ -in (1922, 72) } { $color = "Green" }
                 }
                 RecordStatus -detail $detail -date $_.TimeCreated -status $message -color $color
