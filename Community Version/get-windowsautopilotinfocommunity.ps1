@@ -28,6 +28,7 @@ v4.0.3 - Timestamp fix
 v4.0.4 - Updated devices grab
 v4.0.5 - Added newdevice parameter for quicker imports
 v4.0.6 - Region fix
+v4.0.7 - Added ChangePK switch
 #>
 
 <#
@@ -74,6 +75,9 @@ Removes the device if it already exists
 Updates group tag on existing devices
 .PARAMETER preprov
 Presses Windows key 5 times for whiteglove pre-provisioning
+.PARAMETER ChangePK
+Specifies a product key to inject into the OS.  This will cause the computer to reboot.  This should be combined with
+the -Online and -Assign switches.
 .EXAMPLE
 .\Get-WindowsAutoPilotInfo.ps1 -ComputerName MYCOMPUTER -OutputFile .\MyComputer.csv
 .EXAMPLE
@@ -93,7 +97,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        4.0.6
+Version:        4.0.7
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -122,7 +126,8 @@ param(
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $preprov = $false,
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $delete = $false,
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $updatetag = $false,
-    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $newdevice = $false
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $newdevice = $false,
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String] $ChangePK = ""
 )
 
 Begin {
@@ -2272,7 +2277,7 @@ if ($choice -eq "delete") {
                         Write-Error "Unable to find Azure AD device with ID $($aadDevice.deviceId)"
                     }
                 }
-                Write-Host "Added devices to group '$AddToGroup' ($($aadGroup.ObjectId))"
+                Write-Host "Added devices to group '$AddToGroup' ($($aadGroup.Id))"
             }
             else {
                 Write-Error "Unable to find group $AddToGroup"
@@ -2326,10 +2331,9 @@ if ($choice -eq "delete") {
                 write-host "Wipe sent to $deviceid"
             }
             if ($Sysprep) {
-                write-host "Sending a sysprep to $deviceid"
                 ##Send a sysprep
                 Start-Process -NoNewWindow -FilePath "C:\windows\system32\sysprep\sysprep.exe" -ArgumentList "/oobe /reboot /quiet"
-                write-host "Sysprep sent to $deviceid"
+                write-host "Sysprep executed"
             }
             if ($preprov) {
                 # Activating the Windows Key
@@ -2339,6 +2343,12 @@ if ($choice -eq "delete") {
                 [System.Windows.Forms.SendKeys]::SendWait('^{ESC}')
                 [System.Windows.Forms.SendKeys]::SendWait('^{ESC}')
                 [System.Windows.Forms.SendKeys]::SendWait('^{ESC}')
+            }
+            if ($ChangePK -ne "") {
+                # Run ChangePK.exe
+                Write-Host "Starting ChangePK"
+                Start-Process -NoNewWindow -Wait -FilePath "c:\windows\system32\changepk.exe" -ArgumentList "/ProductKey $ChangePK /NoUI /NoReboot"
+                Restart-Computer -Force
             }
 
         }
