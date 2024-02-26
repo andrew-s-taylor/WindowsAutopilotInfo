@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 4.0.7
+.VERSION 4.0.8
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -29,6 +29,7 @@ v4.0.4 - Updated devices grab
 v4.0.5 - Added newdevice parameter for quicker imports
 v4.0.6 - Region fix
 v4.0.7 - Added ChangePK switch
+v4.0.8 - Added logic around the sync command & Added AutoIt script for pre-prov
 #>
 
 <#
@@ -97,7 +98,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        4.0.7
+Version:        4.0.8
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -2259,7 +2260,13 @@ if ($choice -eq "delete") {
         # Cleanup by Thiago Beier https://twitter.com/thiagobeier https://www.linkedin.com/in/tbeier/
         Get-AutopilotImportedDevice | Where-Object { $_.serialnumber -eq "$serial" } | foreach-object { Remove-AutopilotImportedDevice -id $_.id }
         # Invoke AutopilotSync (When windows autopilot devices GroupTag are updated // changing windows autopilot deployment profiles)
-        Invoke-AutopilotSync
+        try {
+            Invoke-AutopilotSync
+        } catch {
+            Write-Host "An error occurred. Waiting for 10 minutes before retrying..."
+            Start-Sleep -Seconds 600
+            Invoke-AutopilotSync
+        }
 
         # Add the device to the specified AAD group
         if ($AddToGroup) {
@@ -2336,13 +2343,17 @@ if ($choice -eq "delete") {
                 write-host "Sysprep executed"
             }
             if ($preprov) {
-                # Activating the Windows Key
-                Add-Type -AssemblyName System.Windows.Forms
-                [System.Windows.Forms.SendKeys]::SendWait('^{ESC}')
-                [System.Windows.Forms.SendKeys]::SendWait('^{ESC}')
-                [System.Windows.Forms.SendKeys]::SendWait('^{ESC}')
-                [System.Windows.Forms.SendKeys]::SendWait('^{ESC}')
-                [System.Windows.Forms.SendKeys]::SendWait('^{ESC}')
+                ##Create directory in %temp%
+                $path = $env:TEMP + "\preprov"
+                new-item -Path $path -ItemType Directory
+                $uri = "https://github.com/andrew-s-taylor/WindowsAutopilotInfo/raw/main/windowskey-autoit.exe"
+                ##Download it
+                $output = "$path\windowskey-autoit.exe"
+                Invoke-WebRequest -Uri $uri -OutFile $output -UseBasicParsing
+                Write-Host "File downloaded to $output"
+                ##Run it
+                &$output
+                
             }
             if ($ChangePK -ne "") {
                 # Run ChangePK.exe
@@ -2359,8 +2370,8 @@ if ($choice -eq "delete") {
 # SIG # Begin signature block
 # MIIoGQYJKoZIhvcNAQcCoIIoCjCCKAYCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCZYE7jQjd8wxGy
-# 822KrYMviMu1uX8r9KLeCCHjGwBtKqCCIRwwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAxXd4ReVsY6Zov
+# RNVpg32WuVLQcSgFClzOaNlpIhq/yqCCIRwwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2542,33 +2553,33 @@ if ($choice -eq "delete") {
 # aWduaW5nIFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDp
 # MA0GCWCGSAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJ
 # KoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQB
-# gjcCARUwLwYJKoZIhvcNAQkEMSIEIKIwsAM8b/Yj5qKbCi7Z/806SLhzOF9R7U/m
-# iuS+OiUxMA0GCSqGSIb3DQEBAQUABIICAKnyL71lE2R935NRQbIcPHfvaoM+rNSN
-# oSDiRX0k/UZvPmQqF7+zCme1JZRbrEQxt2ufoOduRLnB0TTRU3kGlx96qwTfpjzr
-# abL/yKULSAxvjKrpUk3QWQdQ/zbI27wmkpyzSpTLQpVcTnIvhX25c9RdcohK5r1N
-# LP8PQuc8mEWv2BJTWyls7fgYHVkXRFTMjzx3gZ1KJZfMY/bnE3E15yz0zP9CuQN4
-# P63g3GC8sAzatymHZmG2Mh92hBAUebSr8RyCeopxXZiGhSBhu2Veiv57buDWbt2N
-# 8toIJuX7uyLrI/FbQxVQYroRBfV7HhcgXfuFd16kVWl2kwr2atCzoJysdM9PX0Lm
-# 2XiHApCbDK6znSfZL6RGGtviXGPwp/1MK+gWK8j4Y+vOIgXI9QNVwe3fRBstkUkS
-# f7xMx/1R+J+lZrVRoZXVnx+nSaLo0bJhIAkliF4xzyPQRZSe1x6ocBKO1/2kuZkn
-# 7us5hqcykZHvAVYVZeF620lXT63qRsfUTAlzlwnyGt0tB4dNg1Fv9IR0YEx5yMMb
-# y3WsUYFOb3Nun0Z8fhvXYF/ifLytcUVWtG4jfSEZ8slCCRCr+uqbbf+tnVTsRASV
-# Wakw58X41Tn3HU1uuzEQWZsyfyPsAJtk6GOzi/S4IiHmFBNGf922aT5ZofcyOEG8
-# ecCifqRFlozroYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkG
+# gjcCARUwLwYJKoZIhvcNAQkEMSIEIHcha2wKdo6beIMGMiv/L7t/Mm/r9kWsCAjk
+# QMMch80QMA0GCSqGSIb3DQEBAQUABIICADN1MJJ6N83UsHUYEDrhCffyCSaT6CIn
+# BxhNauPth6ha4ydbLQlWmG2iu32Dt15LkNZEv/hwlNYVxdVPY3Pw+d9KCMw9EbCl
+# ZG6/BzSyfVy+p3FWC6NO/qlAFwWPdMEDx2gk7OmTJMg/z8O1u7SggKtdOHpmbJKd
+# W4SYKs7kd1U1dn5qRYIXO3PzmZmR9Q9PGv27CG18JrjMH16TAEw5g46BmcbhijiR
+# Zxo61LCn0wYOPiEgTtO7yDNGR0Urwe7hTCgMwwr9Pw6DRs+XRpVBavsAw1OMZXPC
+# DZx2D3SetH+5oBT/2lWAtWGoDrp2AVzGp9gaRqBCasx8dwHU9U9WtEQXMEejABjv
+# OcNhs1911p+4we5Fs6ThQw6FQohU7rmQZHi49xM4glc7Mv85fgQKm9bP7SMEQeSw
+# GoqpqxFLd82vDjbHLnxAIX+l7NHOAu2Mf/L7s1jfNciCPn+AGIb2lif3+T4VUXtk
+# g5wwEsfUgbtQ0nvf3JDb9MLcfo5NaI8bboljxKRpJgrdmTIq9S6Z0y4HqKl9hUnN
+# HoejOYAQ57GQb+pfykotraeqHnqda0dru9iD0fnfVQDNcN3BoeKyCfpzFtV2WjAE
+# 1/eo1tIcx24bjJ/ocJLklHDNQnjfnhCTpjoJsJri6tFxHQb9HjepJwc96peN7XBz
+# B2eq3yqldtfPoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkG
 # A1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdp
 # Q2VydCBUcnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQ
 # BUSv85SdCDmmv9s/X+VhFjANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzEL
-# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI0MDIyMzIxNTQyM1owLwYJKoZI
-# hvcNAQkEMSIEIPpqF/WqI81PS22NO/PQpqLwxzn+1p+evnaLb6O3foQqMA0GCSqG
-# SIb3DQEBAQUABIICAEeMDrGHh+HtOUyk4scE/qZcReK78n0EedEL4QQmFnvJ5xDP
-# ARJ8mrWwymnmOjp4iwhoeAJI1mTqf1fjdhYwD38vka6kMamBOJ2iSsUsr2uBwg8n
-# iBfRG3YYTjOqaxdB/YdDaDuxDX77FpsPd12SlrF0Ls5dLpBbkRCfduRPypoB9v4O
-# owegx8VY3PQ5gujvxCnOqQO/P8bt8X7YbvctsAXNQRr6XIPBEMdlJK9o45ot+c54
-# cGCF2ovZ8uQwjcTBcBOrelJAFLOOehE57LvrMROohVYntSdX3d4FOAVhcINXa4Zz
-# dkFVRhC/DpW0TSFX9XgzmqsgPAzIKZ+BelmZh1r7zXaD/TfcxAQOeXl8R1HyDPG/
-# yxmK7ye9uostCoKxbbvre7PViszbF2LgwxrNa9ZIqY7//e8aCZ6Hane7+AKJNMOQ
-# Aqu96ayKJxSDTHI30sdUFtsY8btFvGYn3hDEZoHBLvTi0TNA5nRTiRXFTK+V8/Sc
-# RnLk+xbIZiQXh1ZKhWa3BI0GQxkyfq6okFruR6FMapRiiXdznSnaPRVeqE847dmF
-# 0AJjEhO3oTvFjg/EWIDUAeTIMTnwg0q77aMJgaLB9RBao1J3TEeLA3K3sWkxeq3O
-# Xs4vxH+lR9NejBwzQ6DQ45LQkGc9ORYZCvq3lCty0QZhKsrLbM8ZsLvRNrV7
+# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI0MDIyNjEyMDEwNFowLwYJKoZI
+# hvcNAQkEMSIEIPpdrbkMx6R4I9teI4FYXlcOVJg+lsiciMKMRFxE6emoMA0GCSqG
+# SIb3DQEBAQUABIICADTLO0JdR6abkIBYpZzegmGWfEdDMA0KXEs+DyVQevp6teth
+# Rc0mbnFYFZ0XWe0oL5U3G3jDFslz6o1mKS/LiDxb523qT7RHXgjt78UCyM08PaMc
+# BtoxkLohfMkpKVNPpbL6wOTHbXFvpCiIe8DTEMlAV5OGF6dp5i5QIL/xUIrCPpQJ
+# WnT33xCYD8BGoXBInVxJ5xp8RwP8cy7BD8/j+4YoyutMHKLag2npLkuCdCjOFhq9
+# hmhn3WXX/7U9T7zlidmHjZ4EzZYAnieNAL/ysxc30aMBY4wYx1b39y3ASkeY0wS6
+# rILTxirrZXh8sNkKWPDc5lq7OrPFgSYZCCKeB0PL2UC7eJ3arlTkTbiL8vmyWnpX
+# UfIQT5/5xwpl5M7osXSqxTWGcR0e8zgURTZf6vwm2Ix3J73JJlgcvoP92QrcR1jT
+# Y8rGOjz3ZkoJVeooDHQiVkdjs2EH42Cv2iyUmA7s9fmcA09Wfu4YTPfSbMCSjt7Z
+# lGCGpOFIB7A2abtRFsasyMq2hxe5ZVaEwNAQ84KJQrN7rRXB1uoEMDTj3D1Zm0Ic
+# xzbsKN0mJj/1PT6yaq2EEkMILq7HE5l3/QJwUhbT6NWzpUWzCVdNFHUMJRzSuLd0
+# rN4Yoy/1RJtY+OlrNW1txVE0jHUZfMM8cROgHs8eQ+hjQBWOpaLEdnG0ODtd
 # SIG # End signature block
