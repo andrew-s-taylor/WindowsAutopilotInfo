@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 4.0.8
+.VERSION 4.0.9
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -30,6 +30,7 @@ v4.0.5 - Added newdevice parameter for quicker imports
 v4.0.6 - Region fix
 v4.0.7 - Added ChangePK switch
 v4.0.8 - Added logic around the sync command & Added AutoIt script for pre-prov
+v4.0.9 - Extended sync timeout
 #>
 
 <#
@@ -98,7 +99,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        4.0.8
+Version:        4.0.9
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -2261,12 +2262,13 @@ if ($choice -eq "delete") {
         Get-AutopilotImportedDevice | Where-Object { $_.serialnumber -eq "$serial" } | foreach-object { Remove-AutopilotImportedDevice -id $_.id }
         # Invoke AutopilotSync (When windows autopilot devices GroupTag are updated // changing windows autopilot deployment profiles)
         try {
-            Invoke-AutopilotSync
+            Invoke-AutopilotSync -ErrorAction Stop
         } catch {
-            Write-Host "An error occurred. Waiting for 10 minutes before retrying..."
-            Start-Sleep -Seconds 600
+            Write-Host "$($_.exception.message)"
+            Write-Host "An error occurred. Waiting for 12,5 minutes before retrying..."
+            Start-Sleep -Seconds 750
             Invoke-AutopilotSync
-        }
+       }
 
         # Add the device to the specified AAD group
         if ($AddToGroup) {
@@ -2370,8 +2372,8 @@ if ($choice -eq "delete") {
 # SIG # Begin signature block
 # MIIoGQYJKoZIhvcNAQcCoIIoCjCCKAYCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAxXd4ReVsY6Zov
-# RNVpg32WuVLQcSgFClzOaNlpIhq/yqCCIRwwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDYGewHv+YiVn5g
+# /rnd5JOmgk9/z27rRIBmkHOLLNzk6qCCIRwwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2553,33 +2555,33 @@ if ($choice -eq "delete") {
 # aWduaW5nIFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDp
 # MA0GCWCGSAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJ
 # KoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQB
-# gjcCARUwLwYJKoZIhvcNAQkEMSIEIHcha2wKdo6beIMGMiv/L7t/Mm/r9kWsCAjk
-# QMMch80QMA0GCSqGSIb3DQEBAQUABIICADN1MJJ6N83UsHUYEDrhCffyCSaT6CIn
-# BxhNauPth6ha4ydbLQlWmG2iu32Dt15LkNZEv/hwlNYVxdVPY3Pw+d9KCMw9EbCl
-# ZG6/BzSyfVy+p3FWC6NO/qlAFwWPdMEDx2gk7OmTJMg/z8O1u7SggKtdOHpmbJKd
-# W4SYKs7kd1U1dn5qRYIXO3PzmZmR9Q9PGv27CG18JrjMH16TAEw5g46BmcbhijiR
-# Zxo61LCn0wYOPiEgTtO7yDNGR0Urwe7hTCgMwwr9Pw6DRs+XRpVBavsAw1OMZXPC
-# DZx2D3SetH+5oBT/2lWAtWGoDrp2AVzGp9gaRqBCasx8dwHU9U9WtEQXMEejABjv
-# OcNhs1911p+4we5Fs6ThQw6FQohU7rmQZHi49xM4glc7Mv85fgQKm9bP7SMEQeSw
-# GoqpqxFLd82vDjbHLnxAIX+l7NHOAu2Mf/L7s1jfNciCPn+AGIb2lif3+T4VUXtk
-# g5wwEsfUgbtQ0nvf3JDb9MLcfo5NaI8bboljxKRpJgrdmTIq9S6Z0y4HqKl9hUnN
-# HoejOYAQ57GQb+pfykotraeqHnqda0dru9iD0fnfVQDNcN3BoeKyCfpzFtV2WjAE
-# 1/eo1tIcx24bjJ/ocJLklHDNQnjfnhCTpjoJsJri6tFxHQb9HjepJwc96peN7XBz
-# B2eq3yqldtfPoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkG
+# gjcCARUwLwYJKoZIhvcNAQkEMSIEIJ6k9C3H/4xZt11P78HSGzhjLYr9DhDbh/6a
+# AZDNmxtZMA0GCSqGSIb3DQEBAQUABIICAK4Z7+86k0Jz5L3ui7dovGGHiDcADGZR
+# aytMmrEt6HhOmMDzTcvWazOgOEqMNF3MRiGNWq6z/2phDeh+qm/JvjVlwSozD+l4
+# sgL7qb6bG6FLREZyqPsHE9cww1VnGlcnkkvnpcs7xw3BS4jAAfQw1dZB/GVmtSJG
+# 559uQR5QD5rY1XAAKcM7aRmbWecSzMyBBApUEv0ei8ptF0gLsb67y4j2eJl3pGfE
+# kvbvfcOrs0y1bong2P8N2jC8dUTLHXqJTTryUELFttCcgwjHNrW1+2y//CK1xAjw
+# 65f2k7W7M2DnS9kyw/EtAdiuIc7NJ/Tq1r5JY/tL9qxrzSJhhMD6Ra2R5g4KY0b0
+# TCHsAUpuUPPbTnxttN5SeqXVUBzUoFLqCif2JrS9bSiCAH1iZtbz32XO/WvbTmJT
+# hyJLyuhhfaw3aTl5dWboJwJpHONRqGYB3s4GtHz5FDV8mePmaplp0bTpkL27ZcNi
+# qYzc/rj3X/P3Wo5+dJbFTjttcdRyMc3zbsZUxPt9Fu9ZHH02mjni5UPGOHvR1Kgq
+# 42cqFFoeDajG3zbZyMTjr81oTmqTopYBVrSn4Sv6LXSY6kCN8uF0d6GH1rreZFFv
+# n79WYd31HfPWPmENRk7HsXuOAIFg2q/WY79s8pQJ9l9X6Cw4OH1OP2jjG/WQtt/9
+# R+XRX7DYqUYmoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkG
 # A1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdp
 # Q2VydCBUcnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQ
 # BUSv85SdCDmmv9s/X+VhFjANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzEL
-# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI0MDIyNjEyMDEwNFowLwYJKoZI
-# hvcNAQkEMSIEIPpdrbkMx6R4I9teI4FYXlcOVJg+lsiciMKMRFxE6emoMA0GCSqG
-# SIb3DQEBAQUABIICADTLO0JdR6abkIBYpZzegmGWfEdDMA0KXEs+DyVQevp6teth
-# Rc0mbnFYFZ0XWe0oL5U3G3jDFslz6o1mKS/LiDxb523qT7RHXgjt78UCyM08PaMc
-# BtoxkLohfMkpKVNPpbL6wOTHbXFvpCiIe8DTEMlAV5OGF6dp5i5QIL/xUIrCPpQJ
-# WnT33xCYD8BGoXBInVxJ5xp8RwP8cy7BD8/j+4YoyutMHKLag2npLkuCdCjOFhq9
-# hmhn3WXX/7U9T7zlidmHjZ4EzZYAnieNAL/ysxc30aMBY4wYx1b39y3ASkeY0wS6
-# rILTxirrZXh8sNkKWPDc5lq7OrPFgSYZCCKeB0PL2UC7eJ3arlTkTbiL8vmyWnpX
-# UfIQT5/5xwpl5M7osXSqxTWGcR0e8zgURTZf6vwm2Ix3J73JJlgcvoP92QrcR1jT
-# Y8rGOjz3ZkoJVeooDHQiVkdjs2EH42Cv2iyUmA7s9fmcA09Wfu4YTPfSbMCSjt7Z
-# lGCGpOFIB7A2abtRFsasyMq2hxe5ZVaEwNAQ84KJQrN7rRXB1uoEMDTj3D1Zm0Ic
-# xzbsKN0mJj/1PT6yaq2EEkMILq7HE5l3/QJwUhbT6NWzpUWzCVdNFHUMJRzSuLd0
-# rN4Yoy/1RJtY+OlrNW1txVE0jHUZfMM8cROgHs8eQ+hjQBWOpaLEdnG0ODtd
+# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI0MDIyODEzMzc0NlowLwYJKoZI
+# hvcNAQkEMSIEIFZ1RojTACkCjqH76/6ZqDjCKnLTpUtrgsKPZLrga57lMA0GCSqG
+# SIb3DQEBAQUABIICAB/32Kdp6tCtFyQ540g41F+vKQygci7Rxa3yhCcc9rucwmLZ
+# OFa2xy9/Zz1R9PL27AhrrQFpSwvAQbOjl9rDXobnxRt2BX8YZS0lMpsT0JeUrqJ8
+# mA0oGqG5xgoi8MiKu6zu0LtzYJLco33tkr+kTN9pdFdI+YsMyfUwEKk7U1/gRI2n
+# GQoM4na7g3tX8t6Vy4ZYYPzDsO34aTYAWma9KFkwvk/vZ/vUOUYMt7tTECMXeknU
+# 48q/xZITSvV+gJ2v2WEae2U8dJhLq/GzIsHIJkaRX8Mp26VJ6OFhwWJOg8LqAaEU
+# qpH3s/BvJxPvFaA2G9Tnj/i4+/rseCqLte3yKpe3UCO6YHqTf0hk/Fm3X6NfQD/S
+# SDG9dje95MHKG5agVueKh4AfcsfpGLRwu6khifv/ta77qt0Z9eGCfpqTwwVCPupR
+# 06Ym8eGSEvTrjDERKSjwWhfubocp+CaXrt391n/4Y+Ifb1c7yfc0AYGbfCdBNhmq
+# 3sAuWBXVyRiwE2jS0u05Ta12VyIYHq+RGjSKQeQ8/NgYSKwI6Ert9jIQV610fxwB
+# V73FYX4Q1bQ8IhY04Zo56omM+oaqOps69YqyFtvMfOmD6c1ml7xF3zsHXVGoB2tW
+# Injye2JWNsFHxXNw+sIprouBQKHzbrwyRFGGC3/6ROMsoOEpKryOqYOM5G5+
 # SIG # End signature block
