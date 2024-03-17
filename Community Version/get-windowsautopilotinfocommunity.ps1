@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 4.0.9
+.VERSION 4.0.10
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -31,6 +31,7 @@ v4.0.6 - Region fix
 v4.0.7 - Added ChangePK switch
 v4.0.8 - Added logic around the sync command & Added AutoIt script for pre-prov
 v4.0.9 - Extended sync timeout
+v4.0.10 - Added array for group
 #>
 
 <#
@@ -99,7 +100,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        4.0.9
+Version:        4.0.10
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -119,7 +120,7 @@ param(
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String] $TenantId = "",
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String] $AppId = "",
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String] $AppSecret = "",
-    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String] $AddToGroup = "",
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String[]] $AddToGroup = "",
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String] $AssignedComputerName = "",
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Assign = $false, 
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Reboot = $false,
@@ -2271,27 +2272,29 @@ if ($choice -eq "delete") {
        }
 
         # Add the device to the specified AAD group
-        if ($AddToGroup) {
-            $aadGroup = Get-MgGroup -Filter "DisplayName eq '$AddToGroup'"
-            if ($aadGroup) {
-                $autopilotDevices | ForEach-Object {
-                    $uri = "https://graph.microsoft.com/beta/devices?`$filter=deviceId eq '" + $_.azureActiveDirectoryDeviceId + "'"
-
-                    $aadDevice = (Invoke-MgGraphRequest -Uri $uri -Method GET -OutputType PSObject -SkipHttpErrorCheck).value
-                    if ($aadDevice) {
-                        Write-Host "Adding device $($aadDevice.displayName) to group $AddToGroup"
-                        New-MgGroupMember -GroupId $aadGroup.Id -DirectoryObjectId $aadDevice.id
-                    }
-                    else {
-                        Write-Error "Unable to find Azure AD device with ID $($aadDevice.deviceId)"
-                    }
-                }
-                Write-Host "Added devices to group '$AddToGroup' ($($aadGroup.Id))"
-            }
-            else {
-                Write-Error "Unable to find group $AddToGroup"
-            }
-        }
+    # Add the device to the specified AAD group
+    if ($AddToGroup) {
+		foreach ($ADGroup in $AddToGroup){
+			$aadGroup = Get-MgGroup -Filter "DisplayName eq '$ADGroup'"
+			if ($aadGroup) {
+				$autopilotDevices | ForEach-Object {
+					$uri = "https://graph.microsoft.com/beta/devices?`$filter=deviceId eq '" + $_.azureActiveDirectoryDeviceId + "'"
+					$aadDevice = (Invoke-MgGraphRequest -Uri $uri -Method GET -OutputType PSObject -SkipHttpErrorCheck).value
+					if ($aadDevice) {
+						Write-Host "Adding device $($aadDevice.displayName) to group $ADGroup"
+						New-MgGroupMember -GroupId $aadGroup.Id -DirectoryObjectId $aadDevice.id
+					}
+					else {
+						Write-Error "Unable to find Azure AD device with ID $($aadDevice.deviceId)"
+					}
+				}
+				Write-Host "Added devices to group '$ADGroup' ($($aadGroup.Id))"
+			}
+			else {
+				Write-Error "Unable to find group $ADGroup"
+			}
+		}
+    } #to deal with the array
 
         # Assign the computer name
         if ($AssignedComputerName -ne "") {
@@ -2372,8 +2375,8 @@ if ($choice -eq "delete") {
 # SIG # Begin signature block
 # MIIoGQYJKoZIhvcNAQcCoIIoCjCCKAYCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDYGewHv+YiVn5g
-# /rnd5JOmgk9/z27rRIBmkHOLLNzk6qCCIRwwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDVUBP6OILPSM2p
+# a7Ra5Dqqofo6OX/IyjSM4Q2LbGGtdaCCIRwwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2555,33 +2558,33 @@ if ($choice -eq "delete") {
 # aWduaW5nIFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDp
 # MA0GCWCGSAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJ
 # KoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQB
-# gjcCARUwLwYJKoZIhvcNAQkEMSIEIJ6k9C3H/4xZt11P78HSGzhjLYr9DhDbh/6a
-# AZDNmxtZMA0GCSqGSIb3DQEBAQUABIICAK4Z7+86k0Jz5L3ui7dovGGHiDcADGZR
-# aytMmrEt6HhOmMDzTcvWazOgOEqMNF3MRiGNWq6z/2phDeh+qm/JvjVlwSozD+l4
-# sgL7qb6bG6FLREZyqPsHE9cww1VnGlcnkkvnpcs7xw3BS4jAAfQw1dZB/GVmtSJG
-# 559uQR5QD5rY1XAAKcM7aRmbWecSzMyBBApUEv0ei8ptF0gLsb67y4j2eJl3pGfE
-# kvbvfcOrs0y1bong2P8N2jC8dUTLHXqJTTryUELFttCcgwjHNrW1+2y//CK1xAjw
-# 65f2k7W7M2DnS9kyw/EtAdiuIc7NJ/Tq1r5JY/tL9qxrzSJhhMD6Ra2R5g4KY0b0
-# TCHsAUpuUPPbTnxttN5SeqXVUBzUoFLqCif2JrS9bSiCAH1iZtbz32XO/WvbTmJT
-# hyJLyuhhfaw3aTl5dWboJwJpHONRqGYB3s4GtHz5FDV8mePmaplp0bTpkL27ZcNi
-# qYzc/rj3X/P3Wo5+dJbFTjttcdRyMc3zbsZUxPt9Fu9ZHH02mjni5UPGOHvR1Kgq
-# 42cqFFoeDajG3zbZyMTjr81oTmqTopYBVrSn4Sv6LXSY6kCN8uF0d6GH1rreZFFv
-# n79WYd31HfPWPmENRk7HsXuOAIFg2q/WY79s8pQJ9l9X6Cw4OH1OP2jjG/WQtt/9
-# R+XRX7DYqUYmoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkG
+# gjcCARUwLwYJKoZIhvcNAQkEMSIEIMmtbBOewhzwzetZTF6MSxrvxko9z0eBTP9a
+# 6kawJ1fUMA0GCSqGSIb3DQEBAQUABIICAG29bUcsRZfz17qWUiHdfv8ZB+6u6Zaq
+# bTMTtb3XYa3GhO5kURZNhK58CzrrzMCmmHbgvDkznsPw58kfqs9PBTCHH95dQXQg
+# Er0tBVhjZirQt4yT11WWrT4N6aIiNLxWZ9GF5JoIJdREVXWtX0wWP/ITjengAEim
+# O6E99E9a5kWg3m7sWUn+EDF62tD4LnZijw0svbkd0LzSdOyKwwjWIv65XGT1zR/W
+# MfA2zpoPCRAjKYWfxDri1eH9/mi56EYTJ+52X9lkN4wFd7a5jynXxvMkx9fNLuNf
+# y0pTwZploQOAeagZz8jaZpjzu7qML8C1KEH8QnDQOIAMba2rZsFIwreo1qY6vocq
+# bSxtBLuTJmC0KBhto4qHVlSRbN9N1fV3tXvZVfnCeMD02FrSI3t2iMq0AwusPpuE
+# dUg7DhMn4ea5mDw8ekV4SCqpN5mpIDELTeSoxDUKeoay9jV/2v9H6fWbvmgdrjpb
+# t9Q1/q/JKw95GfKsONW3sj4Mdh2DqtT5Y6d0HtKA74VWH1zsZhl1Ry3rA+dSEnM1
+# gSiU1EACXg5MhMwHBj4+WXWYXKE9aRbP/xpuMu71O5fM1fAxCk6dlA8DY5p6TJgc
+# k0wFpRdTGjH4hnmb8iqpNlRRsKR4MoqVprQ06TZ/BCUYp+B+Bet2IGnFLeRXQGZ7
+# yRnqr3YmZw0poYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkG
 # A1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdp
 # Q2VydCBUcnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQ
 # BUSv85SdCDmmv9s/X+VhFjANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzEL
-# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI0MDIyODEzMzc0NlowLwYJKoZI
-# hvcNAQkEMSIEIFZ1RojTACkCjqH76/6ZqDjCKnLTpUtrgsKPZLrga57lMA0GCSqG
-# SIb3DQEBAQUABIICAB/32Kdp6tCtFyQ540g41F+vKQygci7Rxa3yhCcc9rucwmLZ
-# OFa2xy9/Zz1R9PL27AhrrQFpSwvAQbOjl9rDXobnxRt2BX8YZS0lMpsT0JeUrqJ8
-# mA0oGqG5xgoi8MiKu6zu0LtzYJLco33tkr+kTN9pdFdI+YsMyfUwEKk7U1/gRI2n
-# GQoM4na7g3tX8t6Vy4ZYYPzDsO34aTYAWma9KFkwvk/vZ/vUOUYMt7tTECMXeknU
-# 48q/xZITSvV+gJ2v2WEae2U8dJhLq/GzIsHIJkaRX8Mp26VJ6OFhwWJOg8LqAaEU
-# qpH3s/BvJxPvFaA2G9Tnj/i4+/rseCqLte3yKpe3UCO6YHqTf0hk/Fm3X6NfQD/S
-# SDG9dje95MHKG5agVueKh4AfcsfpGLRwu6khifv/ta77qt0Z9eGCfpqTwwVCPupR
-# 06Ym8eGSEvTrjDERKSjwWhfubocp+CaXrt391n/4Y+Ifb1c7yfc0AYGbfCdBNhmq
-# 3sAuWBXVyRiwE2jS0u05Ta12VyIYHq+RGjSKQeQ8/NgYSKwI6Ert9jIQV610fxwB
-# V73FYX4Q1bQ8IhY04Zo56omM+oaqOps69YqyFtvMfOmD6c1ml7xF3zsHXVGoB2tW
-# Injye2JWNsFHxXNw+sIprouBQKHzbrwyRFGGC3/6ROMsoOEpKryOqYOM5G5+
+# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI0MDMxNzE2NDEyMVowLwYJKoZI
+# hvcNAQkEMSIEIKu7TCEuoBBAshlR+wAZlpud8ZEVFZRgW9Lhpv9UbT1jMA0GCSqG
+# SIb3DQEBAQUABIICAHeTv1WeIqy42DbidaaZNPH064e7qj+AFd73aA2Rs8ExRJcI
+# l+PHlzSBGDFgcSZDmzr4vxhWkdXdvK1FDAm2Cns2e/G8uvrCm+pGFpQ2gW8iQQsR
+# KzPWqIvIGFtYmD9eWw85YeWGQ+w+5Qvo+iZuC/l9yamRJsHleFtSsrXasXXx77wL
+# RhoZsrka1DsV+LGd5L1X/P4cyaSn+NtHNpf4fSBSi4UYc2NWwGP2hpCNMiPkRrdo
+# Nk+sNkvv7Vy6xzL5zjRQJW1hrSYA6/oofUW/feVX7Ir04UOc4n69niKE7TZo9BIa
+# /lkGcu2lpa5pAtBP0JxtwSky4wi2s1y96mT3CXUtom83ZwCgOVJP1nIyOTlLzxuj
+# dVvzJ6H8EQVElJ8lnQSBPBSwqE3qwQwIM1Wmq/u2OOgQKitH13FytwjCnLQycl9x
+# ecRYBeoBAQIm3ER8PiVXADvF1yJr5X1eJaEXJybcgrmAfbtUn46xxQmN8f1O5RA3
+# HwvZINNjoUHMDHYLDfXmtkEAuwvOOV2G612YHCtLCUSYi6+7NVDfd0nzE4YqzBoT
+# 0Esf64JHwClp1KFQXwMcvWwacCrJLaGL1UqkqucvYVzvoVtbUEU/kLpJXnz+6OgM
+# p9bOW7PJdmNYGR/NZN9DFkarbv/t2tPTi28f7anl1c++u+9T1UmVrdNdk3jF
 # SIG # End signature block
