@@ -32,6 +32,7 @@ v4.0.7 - Added ChangePK switch
 v4.0.8 - Added logic around the sync command & Added AutoIt script for pre-prov
 v4.0.9 - Extended sync timeout
 v4.0.10 - Added array for group
+v4.0.11 - Added cert based MsGraph connection
 #>
 
 <#
@@ -120,6 +121,8 @@ param(
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String] $TenantId = "",
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String] $AppId = "",
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String] $AppSecret = "",
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String] $CertificateSubjectName = "",
+    [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String] $CertificateThumbprint = "",
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String[]] $AddToGroup = "",
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [String] $AssignedComputerName = "",
     [Parameter(Mandatory = $False, ParameterSetName = 'Online')] [Switch] $Assign = $false, 
@@ -173,9 +176,9 @@ Begin {
         }
         Import-Module microsoft.graph.Identity.DirectoryManagement -Scope Global
 
-##Add functions from module
-Function Connect-ToGraph {
-    <#
+        ##Add functions from module
+        Function Connect-ToGraph {
+            <#
 .SYNOPSIS
 Authenticates to the Graph API via the Microsoft.Graph.Authentication module.
  
@@ -198,77 +201,91 @@ Specifies the user scopes for interactive authentication.
 Connect-ToGraph -Tenant $tenantID -AppId $app -AppSecret $secret
  
 -#>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $false)] [string]$Tenant,
-        [Parameter(Mandatory = $false)] [string]$AppId,
-        [Parameter(Mandatory = $false)] [string]$AppSecret,
-        [Parameter(Mandatory = $false)] [string]$scopes
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $false)] [string]$Tenant,
+                [Parameter(Mandatory = $false)] [string]$AppId,
+                [Parameter(Mandatory = $false)] [string]$AppSecret,
+                [Parameter(Mandatory = $false)] [string]$CertificateSubjectName,
+                [Parameter(Mandatory = $false)] [string]$CertificateThumbprint,
+                [Parameter(Mandatory = $false)] [string]$scopes
+            )
 
-    Process {
-        Import-Module Microsoft.Graph.Authentication
-        $version = (get-module microsoft.graph.authentication | Select-Object -expandproperty Version).major
+            Process {
+                Import-Module Microsoft.Graph.Authentication
+                $version = (Get-Module microsoft.graph.authentication | Select-Object -ExpandProperty Version).major
 
-        if ($AppId -ne "") {
-            $body = @{
-                grant_type    = "client_credentials";
-                client_id     = $AppId;
-                client_secret = $AppSecret;
-                scope         = "https://graph.microsoft.com/.default";
-            }
+                if ($AppId -ne "") {
+                    if ($CertificateThumbprint) {
+                        $graph = Connect-MgGraph -CertificateThumbprint $CertificateThumbprint -TenantId $Tenant -AppId $AppId 
+                        Write-Host "Connected to Intune tenant $TenantId using certificate thumbprint authentication"
+                    }
+                    elseif ($CertificateSubjectName) {
+                        $graph = Connect-MgGraph -CertificateName $CertificateSubjectName -TenantId $Tenant -AppId $AppId
+                        Write-Host "Connected to Intune tenant $TenantId using certificate subject name authentication"
+                    }
+                    else {
+
+                        $body = @{
+                            grant_type    = "client_credentials";
+                            client_id     = $AppId;
+                            client_secret = $AppSecret;
+                            scope         = "https://graph.microsoft.com/.default";
+                        }
      
-            $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$Tenant/oauth2/v2.0/token -Body $body
-            $accessToken = $response.access_token
+                        $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$Tenant/oauth2/v2.0/token -Body $body
+                        $accessToken = $response.access_token
      
-            $accessToken
-            if ($version -eq 2) {
-                write-host "Version 2 module detected"
-                $accesstokenfinal = ConvertTo-SecureString -String $accessToken -AsPlainText -Force
+                        $accessToken
+                        if ($version -eq 2) {
+                            Write-Host "Version 2 module detected"
+                            $accesstokenfinal = ConvertTo-SecureString -String $accessToken -AsPlainText -Force
+                        }
+                        else {
+                            Write-Host "Version 1 Module Detected"
+                            Select-MgProfile -Name Beta
+                            $accesstokenfinal = $accessToken
+                        }
+
+                        $graph = Connect-MgGraph -AccessToken $accesstokenfinal 
+                        Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+                    }
+                }
+                else {
+                    if ($version -eq 2) {
+                        Write-Host "Version 2 module detected"
+                    }
+                    else {
+                        Write-Host "Version 1 Module Detected"
+                        Select-MgProfile -Name Beta
+                    }
+                    $graph = Connect-MgGraph -Scopes $scopes
+                    Write-Host "Connected to Intune tenant $($graph.TenantId)"
+                }
             }
-            else {
-                write-host "Version 1 Module Detected"
-                Select-MgProfile -Name Beta
-                $accesstokenfinal = $accessToken
+        }    
+        #region Helper methods
+
+        Function BoolToString() {
+            param
+            (
+                [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $True)] [bool] $value
+            )
+
+            Process {
+                return $value.ToString().ToLower()
             }
-            $graph = Connect-MgGraph  -AccessToken $accesstokenfinal 
-            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
         }
-        else {
-            if ($version -eq 2) {
-                write-host "Version 2 module detected"
-            }
-            else {
-                write-host "Version 1 Module Detected"
-                Select-MgProfile -Name Beta
-            }
-            $graph = Connect-MgGraph -scopes $scopes
-            Write-Host "Connected to Intune tenant $($graph.TenantId)"
-        }
-    }
-}    
-#region Helper methods
 
-Function BoolToString() {
-    param
-    (
-        [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $True)] [bool] $value
-    )
-
-    Process {
-        return $value.ToString().ToLower()
-    }
-}
-
-#endregion
+        #endregion
 
 
 
-#region Core methods
+        #region Core methods
 
-Function Get-AutopilotDevice() {
-    <#
+        Function Get-AutopilotDevice() {
+            <#
 .SYNOPSIS
 Gets devices currently registered with Windows Autopilot.
  
@@ -289,86 +306,87 @@ Get a list of all devices registered with Windows Autopilot
  
 Get-AutopilotDevice
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $True)] $id,
-        [Parameter(Mandatory = $false)] $serial,
-        [Parameter(Mandatory = $false)] [Switch]$expand = $false
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $True)] $id,
+                [Parameter(Mandatory = $false)] $serial,
+                [Parameter(Mandatory = $false)] [Switch]$expand = $false
+            )
 
-    Process {
+            Process {
 
-        # Defining Variables
-        $graphApiVersion = "beta"
-        $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"
+                # Defining Variables
+                $graphApiVersion = "beta"
+                $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"
     
-        if ($id -and $expand) {
-            $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)/$($id)?`$expand=deploymentProfile,intendedDeploymentProfile"
-        }
-        elseif ($id) {
-            $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)/$id"
-        }
-        elseif ($serial) {
-            $encoded = [uri]::EscapeDataString($serial)
-            ##Check if serial contains a space
-            $serialelements = $serial.Split(" ")
-            if ($serialelements.Count -gt 1) {
-                $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$filter=contains(serialNumber,'$($serialelements[0])')"
-                $serialhasspaces = 1
-            }
-            else {
-            $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$filter=contains(serialNumber,'$encoded')"
-            }
-        }
-        else {
-            $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)"
-        }
-
-        Write-Verbose "GET $uri"
-
-        try {
-            $response = Invoke-MgGraphRequest -Uri $uri -Method Get -OutputType PSObject
-            if ($id) {
-                $response
-            }
-            else {
-                if ($serialhasspaces -eq 1) {  
-                    $devices = $response.value | Where-Object {$_.serialNumber -eq "$($serial)"}
-               } else {
-                    $devices = $response.value 
-               }
-                $devicesNextLink = $response."@odata.nextLink"
-    
-                while ($null -ne $devicesNextLink) {
-                    $devicesResponse = (Invoke-MgGraphRequest -Uri $devicesNextLink -Method Get -OutputType PSObject)
-                    $devicesNextLink = $devicesResponse."@odata.nextLink"
-                    if ($serialhasspaces -eq 1) {
-                        $devices += $devicesResponse.value | Where-Object {$_.serialNumber -eq "$($serial)"}
+                if ($id -and $expand) {
+                    $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)/$($id)?`$expand=deploymentProfile,intendedDeploymentProfile"
+                }
+                elseif ($id) {
+                    $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)/$id"
+                }
+                elseif ($serial) {
+                    $encoded = [uri]::EscapeDataString($serial)
+                    ##Check if serial contains a space
+                    $serialelements = $serial.Split(" ")
+                    if ($serialelements.Count -gt 1) {
+                        $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$filter=contains(serialNumber,'$($serialelements[0])')"
+                        $serialhasspaces = 1
                     }
                     else {
-                        $devices += $devicesResponse.value
+                        $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$filter=contains(serialNumber,'$encoded')"
                     }
                 }
-    
-                if ($expand) {
-                    $devices | Get-AutopilotDevice -Expand
-                }
                 else {
-                    $devices
+                    $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)"
+                }
+
+                Write-Verbose "GET $uri"
+
+                try {
+                    $response = Invoke-MgGraphRequest -Uri $uri -Method Get -OutputType PSObject
+                    if ($id) {
+                        $response
+                    }
+                    else {
+                        if ($serialhasspaces -eq 1) {  
+                            $devices = $response.value | Where-Object { $_.serialNumber -eq "$($serial)" }
+                        }
+                        else {
+                            $devices = $response.value 
+                        }
+                        $devicesNextLink = $response."@odata.nextLink"
+    
+                        while ($null -ne $devicesNextLink) {
+                            $devicesResponse = (Invoke-MgGraphRequest -Uri $devicesNextLink -Method Get -OutputType PSObject)
+                            $devicesNextLink = $devicesResponse."@odata.nextLink"
+                            if ($serialhasspaces -eq 1) {
+                                $devices += $devicesResponse.value | Where-Object { $_.serialNumber -eq "$($serial)" }
+                            }
+                            else {
+                                $devices += $devicesResponse.value
+                            }
+                        }
+    
+                        if ($expand) {
+                            $devices | Get-AutopilotDevice -expand
+                        }
+                        else {
+                            $devices
+                        }
+                    }
+                }
+                catch {
+                    Write-Error $_.Exception 
+                    break
                 }
             }
         }
-        catch {
-            Write-Error $_.Exception 
-            break
-        }
-    }
-}
 
 
-Function Set-AutopilotDevice() {
-    <#
+        Function Set-AutopilotDevice() {
+            <#
 .SYNOPSIS
 Updates settings on an Autopilot device.
  
@@ -395,57 +413,57 @@ Assign a user and a name to display during enrollment to a Windows Autopilot dev
  
 Set-AutopilotDevice -id $id -userPrincipalName $userPrincipalName -addressableUserName "John Doe" -displayName "CONTOSO-0001" -groupTag "Testing"
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id,
-        [Parameter(ParameterSetName = "Prop")] $userPrincipalName = $null,
-        [Parameter(ParameterSetName = "Prop")] $addressableUserName = $null,
-        [Parameter(ParameterSetName = "Prop")][Alias("ComputerName", "CN", "MachineName")] $displayName = $null,
-        [Parameter(ParameterSetName = "Prop")] $groupTag = $null
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id,
+                [Parameter(ParameterSetName = "Prop")] $userPrincipalName = $null,
+                [Parameter(ParameterSetName = "Prop")] $addressableUserName = $null,
+                [Parameter(ParameterSetName = "Prop")][Alias("ComputerName", "CN", "MachineName")] $displayName = $null,
+                [Parameter(ParameterSetName = "Prop")] $groupTag = $null
+            )
 
-    Process {
+            Process {
     
-        # Defining Variables
-        $graphApiVersion = "beta"
-        $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"
+                # Defining Variables
+                $graphApiVersion = "beta"
+                $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"
     
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id/UpdateDeviceProperties"
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id/UpdateDeviceProperties"
 
-        $json = "{"
-        if ($PSBoundParameters.ContainsKey('userPrincipalName')) {
-            $json = $json + " userPrincipalName: `"$userPrincipalName`","
-        }
-        if ($PSBoundParameters.ContainsKey('addressableUserName')) {
-            $json = $json + " addressableUserName: `"$addressableUserName`","
-        }
-        if ($PSBoundParameters.ContainsKey('displayName')) {
-            $json = $json + " displayName: `"$displayName`","
-        }
-        if ($PSBoundParameters.ContainsKey('groupTag')) {
-            $json = $json + " groupTag: `"$groupTag`""
-        }
-        else {
-            $json = $json.Trim(",")
-        }
-        $json = $json + " }"
+                $json = "{"
+                if ($PSBoundParameters.ContainsKey('userPrincipalName')) {
+                    $json = $json + " userPrincipalName: `"$userPrincipalName`","
+                }
+                if ($PSBoundParameters.ContainsKey('addressableUserName')) {
+                    $json = $json + " addressableUserName: `"$addressableUserName`","
+                }
+                if ($PSBoundParameters.ContainsKey('displayName')) {
+                    $json = $json + " displayName: `"$displayName`","
+                }
+                if ($PSBoundParameters.ContainsKey('groupTag')) {
+                    $json = $json + " groupTag: `"$groupTag`""
+                }
+                else {
+                    $json = $json.Trim(",")
+                }
+                $json = $json + " }"
 
-        Write-Verbose "POST $uri`n$json"
+                Write-Verbose "POST $uri`n$json"
 
-        try {
-            Invoke-MGGraphRequest -Uri $uri -Method POST -Body $json -ContentType "application/json" -OutputType PSObject
+                try {
+                    Invoke-MgGraphRequest -Uri $uri -Method POST -Body $json -ContentType "application/json" -OutputType PSObject
+                }
+                catch {
+                    Write-Error $_.Exception 
+                    break
+                }
+            }
         }
-        catch {
-            Write-Error $_.Exception 
-            break
-        }
-    }
-}
 
     
-Function Remove-AutopilotDevice() {
-    <#
+        Function Remove-AutopilotDevice() {
+            <#
 .SYNOPSIS
 Removes a specific device currently registered with Windows Autopilot.
  
@@ -460,39 +478,39 @@ Remove all Windows Autopilot devices from the current Azure AD tenant
  
 Get-AutopilotDevice | Remove-AutopilotDevice
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id,
-        [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $True)] $serialNumber
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id,
+                [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $True)] $serialNumber
+            )
 
-    Begin {
-        $bulkList = @()
-    }
+            Begin {
+                $bulkList = @()
+            }
 
-    Process {
+            Process {
 
-        # Defining Variables
-        $graphApiVersion = "beta"
-        $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"    
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
+                # Defining Variables
+                $graphApiVersion = "beta"
+                $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"    
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
 
-        try {
-            Write-Verbose "DELETE $uri"
-            Invoke-MGGraphRequest -Uri $uri -Method DELETE
-        }
-        catch {
-            Write-Error $_.Exception 
-            break
-        }
+                try {
+                    Write-Verbose "DELETE $uri"
+                    Invoke-MgGraphRequest -Uri $uri -Method DELETE
+                }
+                catch {
+                    Write-Error $_.Exception 
+                    break
+                }
         
-    }
-}
+            }
+        }
 
 
-Function Get-AutopilotImportedDevice() {
-    <#
+        Function Get-AutopilotImportedDevice() {
+            <#
 .SYNOPSIS
 Gets information about devices being imported into Windows Autopilot.
  
@@ -507,56 +525,56 @@ Get a list of all devices being imported into Windows Autopilot for the current 
  
 Get-AutopilotImportedDevice
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $false)] $id = $null,
-        [Parameter(Mandatory = $false)] $serial
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $false)] $id = $null,
+                [Parameter(Mandatory = $false)] $serial
+            )
 
-    # Defining Variables
-    $graphApiVersion = "beta"
-    if ($id) {
-        $uri = "https://graph.microsoft.com/$graphApiVersion/deviceManagement/importedWindowsAutopilotDeviceIdentities/$id"
-    } 
-    elseif ($serial) {
-        # handles also serial numbers with spaces    
-        $uri = "https://graph.microsoft.com/$graphApiVersion/deviceManagement/importedWindowsAutopilotDeviceIdentities/?`$filter=contains(serialNumber,'$serial')"
-    }
-    else {
-        $uri = "https://graph.microsoft.com/$graphApiVersion/deviceManagement/importedWindowsAutopilotDeviceIdentities"
-    }
-
-    Write-Verbose "GET $uri"
-
-    try {
-        $response = Invoke-MGGraphRequest -Uri $uri -Method Get -OutputType PSObject
-        if ($id) {
-            $response
-        }
-        else {
-            $devices = $response.value
-    
-            $devicesNextLink = $response."@odata.nextLink"
-    
-            while ($null -ne $devicesNextLink) {
-                $devicesResponse = (Invoke-MGGraphRequest -Uri $devicesNextLink -Method Get -OutputType PSObject)
-                $devicesNextLink = $devicesResponse."@odata.nextLink"
-                $devices += $devicesResponse.value
+            # Defining Variables
+            $graphApiVersion = "beta"
+            if ($id) {
+                $uri = "https://graph.microsoft.com/$graphApiVersion/deviceManagement/importedWindowsAutopilotDeviceIdentities/$id"
+            } 
+            elseif ($serial) {
+                # handles also serial numbers with spaces    
+                $uri = "https://graph.microsoft.com/$graphApiVersion/deviceManagement/importedWindowsAutopilotDeviceIdentities/?`$filter=contains(serialNumber,'$serial')"
             }
+            else {
+                $uri = "https://graph.microsoft.com/$graphApiVersion/deviceManagement/importedWindowsAutopilotDeviceIdentities"
+            }
+
+            Write-Verbose "GET $uri"
+
+            try {
+                $response = Invoke-MgGraphRequest -Uri $uri -Method Get -OutputType PSObject
+                if ($id) {
+                    $response
+                }
+                else {
+                    $devices = $response.value
     
-            $devices
+                    $devicesNextLink = $response."@odata.nextLink"
+    
+                    while ($null -ne $devicesNextLink) {
+                        $devicesResponse = (Invoke-MgGraphRequest -Uri $devicesNextLink -Method Get -OutputType PSObject)
+                        $devicesNextLink = $devicesResponse."@odata.nextLink"
+                        $devices += $devicesResponse.value
+                    }
+    
+                    $devices
+                }
+            }
+            catch {
+                Write-Error $_.Exception 
+                break
+            }
+
         }
-    }
-    catch {
-        Write-Error $_.Exception 
-        break
-    }
-
-}
 
 
-<#
+        <#
 .SYNOPSIS
 Adds a new device to Windows Autopilot.
  
@@ -583,21 +601,21 @@ Add a new device to Windows Autopilot for the current Azure AD tenant.
  
 Add-AutopilotImportedDevice -serialNumber $serial -hardwareIdentifier $hash -groupTag "Kiosk" -assignedUser "anna@contoso.com"
 #>
-Function Add-AutopilotImportedDevice() {
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $true)] $serialNumber,
-        [Parameter(Mandatory = $true)] $hardwareIdentifier,
-        [Parameter(Mandatory = $false)] [Alias("orderIdentifier")] $groupTag = "",
-        [Parameter(ParameterSetName = "Prop2")][Alias("UPN")] $assignedUser = ""
-    )
+        Function Add-AutopilotImportedDevice() {
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $true)] $serialNumber,
+                [Parameter(Mandatory = $true)] $hardwareIdentifier,
+                [Parameter(Mandatory = $false)] [Alias("orderIdentifier")] $groupTag = "",
+                [Parameter(ParameterSetName = "Prop2")][Alias("UPN")] $assignedUser = ""
+            )
 
-    # Defining Variables
-    $graphApiVersion = "beta"
-    $Resource = "deviceManagement/importedWindowsAutopilotDeviceIdentities"
-    $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
-    $json = @"
+            # Defining Variables
+            $graphApiVersion = "beta"
+            $Resource = "deviceManagement/importedWindowsAutopilotDeviceIdentities"
+            $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
+            $json = @"
 {
     "@odata.type": "#microsoft.graph.importedWindowsAutopilotDeviceIdentity",
     "groupTag": "$groupTag",
@@ -615,21 +633,21 @@ Function Add-AutopilotImportedDevice() {
 }
 "@
 
-    Write-Verbose "POST $uri`n$json"
+            Write-Verbose "POST $uri`n$json"
 
-    try {
-        Invoke-MGGraphRequest -Uri $uri -Method Post -body $json -ContentType "application/json"
-    }
-    catch {
-        Write-Error $_.Exception 
-        break
-    }
+            try {
+                Invoke-MgGraphRequest -Uri $uri -Method Post -Body $json -ContentType "application/json"
+            }
+            catch {
+                Write-Error $_.Exception 
+                break
+            }
     
-}
+        }
 
     
-Function Remove-AutopilotImportedDevice() {
-    <#
+        Function Remove-AutopilotImportedDevice() {
+            <#
 .SYNOPSIS
 Removes the status information for a device being imported into Windows Autopilot.
  
@@ -644,35 +662,35 @@ Remove the status information for a specified device.
  
 Remove-AutopilotImportedDevice -id $id
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id
+            )
 
-    Process {
+            Process {
 
-        # Defining Variables
-        $graphApiVersion = "beta"
-        $Resource = "deviceManagement/importedWindowsAutopilotDeviceIdentities"    
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
+                # Defining Variables
+                $graphApiVersion = "beta"
+                $Resource = "deviceManagement/importedWindowsAutopilotDeviceIdentities"    
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
 
-        try {
-            Write-Verbose "DELETE $uri"
-            Invoke-MGGraphRequest -Uri $uri -Method DELETE
-        }
-        catch {
-            Write-Error $_.Exception 
-            break
-        }
+                try {
+                    Write-Verbose "DELETE $uri"
+                    Invoke-MgGraphRequest -Uri $uri -Method DELETE
+                }
+                catch {
+                    Write-Error $_.Exception 
+                    break
+                }
 
-    }
+            }
         
-}
+        }
 
 
-Function Get-AutopilotProfile() {
-    <#
+        Function Get-AutopilotProfile() {
+            <#
 .SYNOPSIS
 Gets Windows Autopilot profile details.
  
@@ -687,54 +705,54 @@ Get a list of all Windows Autopilot profiles.
  
 Get-AutopilotProfile
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $false)] $id
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $false)] $id
+            )
 
-    # Defining Variables
-    $graphApiVersion = "beta"
-    $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
+            # Defining Variables
+            $graphApiVersion = "beta"
+            $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
 
-    if ($id) {
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
-    }
-    else {
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
-    }
-
-    Write-Verbose "GET $uri"
-
-    try {
-        $response = Invoke-MGGraphRequest -Uri $uri -Method Get -OutputType PSObject
-        if ($id) {
-            $response
-        }
-        else {
-            $devices = $response.value
-    
-            $devicesNextLink = $response."@odata.nextLink"
-    
-            while ($null -ne $devicesNextLink) {
-                $devicesResponse = (Invoke-MGGraphRequest -Uri $devicesNextLink -Method Get -outputType PSObject)
-                $devicesNextLink = $devicesResponse."@odata.nextLink"
-                $devices += $devicesResponse.value
+            if ($id) {
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
             }
+            else {
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
+            }
+
+            Write-Verbose "GET $uri"
+
+            try {
+                $response = Invoke-MgGraphRequest -Uri $uri -Method Get -OutputType PSObject
+                if ($id) {
+                    $response
+                }
+                else {
+                    $devices = $response.value
     
-            $devices
+                    $devicesNextLink = $response."@odata.nextLink"
+    
+                    while ($null -ne $devicesNextLink) {
+                        $devicesResponse = (Invoke-MgGraphRequest -Uri $devicesNextLink -Method Get -OutputType PSObject)
+                        $devicesNextLink = $devicesResponse."@odata.nextLink"
+                        $devices += $devicesResponse.value
+                    }
+    
+                    $devices
+                }
+            }
+            catch {
+                Write-Error $_.Exception 
+                break
+            }
+
         }
-    }
-    catch {
-        Write-Error $_.Exception 
-        break
-    }
-
-}
 
 
-Function Get-AutopilotProfileAssignedDevice() {
-    <#
+        Function Get-AutopilotProfileAssignedDevice() {
+            <#
 .SYNOPSIS
 Gets the list of devices that are assigned to the specified Windows Autopilot profile.
  
@@ -749,36 +767,36 @@ Get a list of all Windows Autopilot profiles.
  
 Get-AutopilotProfileAssignedDevices -id $id
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $True)] $id
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $True)] $id
+            )
 
-    Process {
+            Process {
 
-        # Defining Variables
-        $graphApiVersion = "beta"
-        $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id/assignedDevices"
+                # Defining Variables
+                $graphApiVersion = "beta"
+                $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id/assignedDevices"
 
-        Write-Verbose "GET $uri"
+                Write-Verbose "GET $uri"
 
-        try {
-            $response = Invoke-MGGraphRequest -Uri $uri -Method Get
-            $response.Value
+                try {
+                    $response = Invoke-MgGraphRequest -Uri $uri -Method Get
+                    $response.Value
+                }
+                catch {
+                    Write-Error $_.Exception 
+                    break
+                }
+            }
         }
-        catch {
-            Write-Error $_.Exception 
-            break
-        }
-    }
-}
 
 
 
-Function ConvertTo-AutopilotConfigurationJSON() {
-    <#
+        Function ConvertTo-AutopilotConfigurationJSON() {
+            <#
 .SYNOPSIS
 Converts the specified Windows Autopilot profile into a JSON format.
  
@@ -793,108 +811,108 @@ Get the JSON representation of each Windows Autopilot profile in the current Azu
  
 Get-AutopilotProfile | ConvertTo-AutopilotConfigurationJSON
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $true, ValueFromPipeline = $True)]
-        [Object] $profile
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $true, ValueFromPipeline = $True)]
+                [Object] $profile
+            )
 
-    Begin {
+            Begin {
 
-        # Set the org-related info
-        $script:TenantOrg = Get-Organization
-        foreach ($domain in $script:TenantOrg.VerifiedDomains) {
-            if ($domain.isDefault) {
-                $script:TenantDomain = $domain.name
+                # Set the org-related info
+                $script:TenantOrg = Get-Organization
+                foreach ($domain in $script:TenantOrg.VerifiedDomains) {
+                    if ($domain.isDefault) {
+                        $script:TenantDomain = $domain.name
+                    }
+                }
             }
-        }
-    }
 
-    Process {
+            Process {
 
-        $oobeSettings = $profile.outOfBoxExperienceSettings
+                $oobeSettings = $profile.outOfBoxExperienceSettings
 
-        # Build up properties
-        $json = @{}
-        $json.Add("Comment_File", "Profile $($_.displayName)")
-        $json.Add("Version", 2049)
-        $json.Add("ZtdCorrelationId", $_.id)
-        if ($profile."@odata.type" -eq "#microsoft.graph.activeDirectoryWindowsAutopilotDeploymentProfile") {
-            $json.Add("CloudAssignedDomainJoinMethod", 1)
-        }
-        else {
-            $json.Add("CloudAssignedDomainJoinMethod", 0)
-        }
-        if ($profile.deviceNameTemplate) {
-            $json.Add("CloudAssignedDeviceName", $_.deviceNameTemplate)
-        }
+                # Build up properties
+                $json = @{}
+                $json.Add("Comment_File", "Profile $($_.displayName)")
+                $json.Add("Version", 2049)
+                $json.Add("ZtdCorrelationId", $_.id)
+                if ($profile."@odata.type" -eq "#microsoft.graph.activeDirectoryWindowsAutopilotDeploymentProfile") {
+                    $json.Add("CloudAssignedDomainJoinMethod", 1)
+                }
+                else {
+                    $json.Add("CloudAssignedDomainJoinMethod", 0)
+                }
+                if ($profile.deviceNameTemplate) {
+                    $json.Add("CloudAssignedDeviceName", $_.deviceNameTemplate)
+                }
 
-        # Figure out config value
-        $oobeConfig = 8 + 256
-        if ($oobeSettings.userType -eq 'standard') {
-            $oobeConfig += 2
-        }
-        if ($oobeSettings.hidePrivacySettings -eq $true) {
-            $oobeConfig += 4
-        }
-        if ($oobeSettings.hideEULA -eq $true) {
-            $oobeConfig += 16
-        }
-        if ($oobeSettings.skipKeyboardSelectionPage -eq $true) {
-            $oobeConfig += 1024
-            if ($_.language) {
-                $json.Add("CloudAssignedLanguage", $_.language)
-                # Use the same value for region so that screen is skipped too
-                $json.Add("CloudAssignedRegion", $_.language)
+                # Figure out config value
+                $oobeConfig = 8 + 256
+                if ($oobeSettings.userType -eq 'standard') {
+                    $oobeConfig += 2
+                }
+                if ($oobeSettings.hidePrivacySettings -eq $true) {
+                    $oobeConfig += 4
+                }
+                if ($oobeSettings.hideEULA -eq $true) {
+                    $oobeConfig += 16
+                }
+                if ($oobeSettings.skipKeyboardSelectionPage -eq $true) {
+                    $oobeConfig += 1024
+                    if ($_.language) {
+                        $json.Add("CloudAssignedLanguage", $_.language)
+                        # Use the same value for region so that screen is skipped too
+                        $json.Add("CloudAssignedRegion", $_.language)
+                    }
+                }
+                if ($oobeSettings.deviceUsageType -eq 'shared') {
+                    $oobeConfig += 32 + 64
+                }
+                $json.Add("CloudAssignedOobeConfig", $oobeConfig)
+
+                # Set the forced enrollment setting
+                if ($oobeSettings.hideEscapeLink -eq $true) {
+                    $json.Add("CloudAssignedForcedEnrollment", 1)
+                }
+                else {
+                    $json.Add("CloudAssignedForcedEnrollment", 0)
+                }
+
+                $json.Add("CloudAssignedTenantId", $script:TenantOrg.id)
+                $json.Add("CloudAssignedTenantDomain", $script:TenantDomain)
+                $embedded = @{}
+                $embedded.Add("CloudAssignedTenantDomain", $script:TenantDomain)
+                $embedded.Add("CloudAssignedTenantUpn", "")
+                if ($oobeSettings.hideEscapeLink -eq $true) {
+                    $embedded.Add("ForcedEnrollment", 1)
+                }
+                else {
+                    $embedded.Add("ForcedEnrollment", 0)
+                }
+                $ztc = @{}
+                $ztc.Add("ZeroTouchConfig", $embedded)
+                $json.Add("CloudAssignedAadServerData", (ConvertTo-Json $ztc -Compress))
+
+                # Skip connectivity check
+                if ($profile.hybridAzureADJoinSkipConnectivityCheck -eq $true) {
+                    $json.Add("HybridJoinSkipDCConnectivityCheck", 1)
+                }
+
+                # Hard-code properties not represented in Intune
+                $json.Add("CloudAssignedAutopilotUpdateDisabled", 1)
+                $json.Add("CloudAssignedAutopilotUpdateTimeout", 1800000)
+
+                # Return the JSON
+                ConvertTo-Json $json
             }
-        }
-        if ($oobeSettings.deviceUsageType -eq 'shared') {
-            $oobeConfig += 32 + 64
-        }
-        $json.Add("CloudAssignedOobeConfig", $oobeConfig)
 
-        # Set the forced enrollment setting
-        if ($oobeSettings.hideEscapeLink -eq $true) {
-            $json.Add("CloudAssignedForcedEnrollment", 1)
-        }
-        else {
-            $json.Add("CloudAssignedForcedEnrollment", 0)
         }
 
-        $json.Add("CloudAssignedTenantId", $script:TenantOrg.id)
-        $json.Add("CloudAssignedTenantDomain", $script:TenantDomain)
-        $embedded = @{}
-        $embedded.Add("CloudAssignedTenantDomain", $script:TenantDomain)
-        $embedded.Add("CloudAssignedTenantUpn", "")
-        if ($oobeSettings.hideEscapeLink -eq $true) {
-            $embedded.Add("ForcedEnrollment", 1)
-        }
-        else {
-            $embedded.Add("ForcedEnrollment", 0)
-        }
-        $ztc = @{}
-        $ztc.Add("ZeroTouchConfig", $embedded)
-        $json.Add("CloudAssignedAadServerData", (ConvertTo-JSON $ztc -Compress))
 
-        # Skip connectivity check
-        if ($profile.hybridAzureADJoinSkipConnectivityCheck -eq $true) {
-            $json.Add("HybridJoinSkipDCConnectivityCheck", 1)
-        }
-
-        # Hard-code properties not represented in Intune
-        $json.Add("CloudAssignedAutopilotUpdateDisabled", 1)
-        $json.Add("CloudAssignedAutopilotUpdateTimeout", 1800000)
-
-        # Return the JSON
-        ConvertTo-JSON $json
-    }
-
-}
-
-
-Function Set-AutopilotProfile() {
-    <#
+        Function Set-AutopilotProfile() {
+            <#
 .SYNOPSIS
 Sets Windows Autopilot profile properties on an existing Autopilot profile.
  
@@ -959,110 +977,110 @@ Update an existing Autopilot profile to set multiple properties:
  
 Set-AutopilotProfile -ID <guid> -Language "en-us" -displayname "My testing profile" -Description "Description of my profile" -OOBE_HideEULA $True -OOBE_hidePrivacySettings $True
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id,
-        [Parameter(ParameterSetName = 'notAll')][string] $displayName,
-        [Parameter(ParameterSetName = 'notAll')][string] $description,
-        [Parameter(ParameterSetName = 'notAll')][Switch] $ConvertDeviceToAutopilot,
-        [Parameter(ParameterSetName = 'notAll')][string] $OOBE_language,
-        [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_skipKeyboard,
-        [Parameter(ParameterSetName = 'notAll')][string] $OOBE_NameTemplate,
-        [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_EnableWhiteGlove,
-        [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_UserTypeAdmin,
-        [Parameter(ParameterSetName = 'AllEnabled', Mandatory = $true)][Switch] $AllEnabled, 
-        [Parameter(ParameterSetName = 'AllDisabled', Mandatory = $true)][Switch] $AllDisabled, 
-        [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_HideEULA,
-        [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_hidePrivacySettings,
-        [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_HideChangeAccountOpts,
-        [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_SkipConnectivityCheck
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id,
+                [Parameter(ParameterSetName = 'notAll')][string] $displayName,
+                [Parameter(ParameterSetName = 'notAll')][string] $description,
+                [Parameter(ParameterSetName = 'notAll')][Switch] $ConvertDeviceToAutopilot,
+                [Parameter(ParameterSetName = 'notAll')][string] $OOBE_language,
+                [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_skipKeyboard,
+                [Parameter(ParameterSetName = 'notAll')][string] $OOBE_NameTemplate,
+                [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_EnableWhiteGlove,
+                [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_UserTypeAdmin,
+                [Parameter(ParameterSetName = 'AllEnabled', Mandatory = $true)][Switch] $AllEnabled, 
+                [Parameter(ParameterSetName = 'AllDisabled', Mandatory = $true)][Switch] $AllDisabled, 
+                [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_HideEULA,
+                [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_hidePrivacySettings,
+                [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_HideChangeAccountOpts,
+                [Parameter(ParameterSetName = 'notAll')][Switch] $OOBE_SkipConnectivityCheck
+            )
 
-    # Get the current values
-    $current = Get-AutopilotProfile -id $id
+            # Get the current values
+            $current = Get-AutopilotProfile -id $id
 
-    # If this is a Hybrid AADJ profile, make sure it has the needed property
-    if ($current.'@odata.type' -eq "#microsoft.graph.azureADWindowsAutopilotDeploymentProfile") {
-        if (-not ($current.PSObject.Properties | where-object { $_.Name -eq "hybridAzureADJoinSkipConnectivityCheck" })) {
-            $current | Add-Member -NotePropertyName hybridAzureADJoinSkipConnectivityCheck -NotePropertyValue $false
-        }
-    }
+            # If this is a Hybrid AADJ profile, make sure it has the needed property
+            if ($current.'@odata.type' -eq "#microsoft.graph.azureADWindowsAutopilotDeploymentProfile") {
+                if (-not ($current.PSObject.Properties | Where-Object { $_.Name -eq "hybridAzureADJoinSkipConnectivityCheck" })) {
+                    $current | Add-Member -NotePropertyName hybridAzureADJoinSkipConnectivityCheck -NotePropertyValue $false
+                }
+            }
 
-    # For parameters that were specified, update that object in place
-    if ($PSBoundParameters.ContainsKey('displayName')) { $current.displayName = $displayName }
-    if ($PSBoundParameters.ContainsKey('description')) { $current.description = $description }
-    if ($PSBoundParameters.ContainsKey('ConvertDeviceToAutopilot')) { $current.extractHardwareHash = [bool]$ConvertDeviceToAutopilot }
-    if ($PSBoundParameters.ContainsKey('OOBE_language')) { $current.language = $OOBE_language }
-    if ($PSBoundParameters.ContainsKey('OOBE_skipKeyboard')) { $current.outOfBoxExperienceSettings.skipKeyboardSelectionPage = [bool]$OOBE_skipKeyboard }
-    if ($PSBoundParameters.ContainsKey('OOBE_NameTemplate')) { $current.deviceNameTemplate = $OOBE_NameTemplate }
-    if ($PSBoundParameters.ContainsKey('OOBE_EnableWhiteGlove')) { $current.enableWhiteGlove = [bool]$OOBE_EnableWhiteGlove }
-    if ($PSBoundParameters.ContainsKey('OOBE_UserTypeAdmin')) {
-        if ($OOBE_UserTypeAdmin) {
-            $current.outOfBoxExperienceSettings.userType = "administrator"
-        }
-        else {
-            $current.outOfBoxExperienceSettings.userType = "standard"
-        }
-    }
-    if ($PSBoundParameters.ContainsKey('OOBE_HideEULA')) { $current.outOfBoxExperienceSettings.hideEULA = [bool]$OOBE_HideEULA }
-    if ($PSBoundParameters.ContainsKey('OOBE_HidePrivacySettings')) { $current.outOfBoxExperienceSettings.hidePrivacySettings = [bool]$OOBE_HidePrivacySettings }
-    if ($PSBoundParameters.ContainsKey('OOBE_HideChangeAccountOpts')) { $current.outOfBoxExperienceSettings.hideEscapeLink = [bool]$OOBE_HideChangeAccountOpts }
-    if ($PSBoundParameters.ContainsKey('OOBE_SkipConnectivityCheck')) { $current.hybridAzureADJoinSkipConnectivityCheck = [bool]$OOBE_SkipConnectivityCheck }
+            # For parameters that were specified, update that object in place
+            if ($PSBoundParameters.ContainsKey('displayName')) { $current.displayName = $displayName }
+            if ($PSBoundParameters.ContainsKey('description')) { $current.description = $description }
+            if ($PSBoundParameters.ContainsKey('ConvertDeviceToAutopilot')) { $current.extractHardwareHash = [bool]$ConvertDeviceToAutopilot }
+            if ($PSBoundParameters.ContainsKey('OOBE_language')) { $current.language = $OOBE_language }
+            if ($PSBoundParameters.ContainsKey('OOBE_skipKeyboard')) { $current.outOfBoxExperienceSettings.skipKeyboardSelectionPage = [bool]$OOBE_skipKeyboard }
+            if ($PSBoundParameters.ContainsKey('OOBE_NameTemplate')) { $current.deviceNameTemplate = $OOBE_NameTemplate }
+            if ($PSBoundParameters.ContainsKey('OOBE_EnableWhiteGlove')) { $current.enableWhiteGlove = [bool]$OOBE_EnableWhiteGlove }
+            if ($PSBoundParameters.ContainsKey('OOBE_UserTypeAdmin')) {
+                if ($OOBE_UserTypeAdmin) {
+                    $current.outOfBoxExperienceSettings.userType = "administrator"
+                }
+                else {
+                    $current.outOfBoxExperienceSettings.userType = "standard"
+                }
+            }
+            if ($PSBoundParameters.ContainsKey('OOBE_HideEULA')) { $current.outOfBoxExperienceSettings.hideEULA = [bool]$OOBE_HideEULA }
+            if ($PSBoundParameters.ContainsKey('OOBE_HidePrivacySettings')) { $current.outOfBoxExperienceSettings.hidePrivacySettings = [bool]$OOBE_HidePrivacySettings }
+            if ($PSBoundParameters.ContainsKey('OOBE_HideChangeAccountOpts')) { $current.outOfBoxExperienceSettings.hideEscapeLink = [bool]$OOBE_HideChangeAccountOpts }
+            if ($PSBoundParameters.ContainsKey('OOBE_SkipConnectivityCheck')) { $current.hybridAzureADJoinSkipConnectivityCheck = [bool]$OOBE_SkipConnectivityCheck }
 
-    if ($AllEnabled) {
-        $current.extractHardwareHash = $true
-        $current.outOfBoxExperienceSettings.hidePrivacySettings = $true
-        $current.outOfBoxExperienceSettings.hideEscapeLink = $true
-        $current.hybridAzureADJoinSkipConnectivityCheck = $true
-        $current.EnableWhiteGlove = $true
-        $current.outOfBoxExperienceSettings.hideEULA = $true 
-        $current.outOfBoxExperienceSettings.hidePrivacySettings = $true
-        $current.outOfBoxExperienceSettings.hideEscapeLink = $true
-        $current.outOfBoxExperienceSettings.skipKeyboardSelectionPage = $true
-        $current.outOfBoxExperienceSettings.userType = "administrator"
-    }
-    elseif ($AllDisabled) {
-        $current.extractHardwareHash = $false
-        $current.outOfBoxExperienceSettings.hidePrivacySettings = $false
-        $current.outOfBoxExperienceSettings.hideEscapeLink = $false
-        $current.hybridAzureADJoinSkipConnectivityCheck = $false
-        $current.EnableWhiteGlove = $false
-        $current.outOfBoxExperienceSettings.hideEULA = $false
-        $current.outOfBoxExperienceSettings.hidePrivacySettings = $false
-        $current.outOfBoxExperienceSettings.hideEscapeLink = $false
-        $current.outOfBoxExperienceSettings.skipKeyboardSelectionPage = $false
-        $current.outOfBoxExperienceSettings.userType = "standard"
-    }
+            if ($AllEnabled) {
+                $current.extractHardwareHash = $true
+                $current.outOfBoxExperienceSettings.hidePrivacySettings = $true
+                $current.outOfBoxExperienceSettings.hideEscapeLink = $true
+                $current.hybridAzureADJoinSkipConnectivityCheck = $true
+                $current.EnableWhiteGlove = $true
+                $current.outOfBoxExperienceSettings.hideEULA = $true 
+                $current.outOfBoxExperienceSettings.hidePrivacySettings = $true
+                $current.outOfBoxExperienceSettings.hideEscapeLink = $true
+                $current.outOfBoxExperienceSettings.skipKeyboardSelectionPage = $true
+                $current.outOfBoxExperienceSettings.userType = "administrator"
+            }
+            elseif ($AllDisabled) {
+                $current.extractHardwareHash = $false
+                $current.outOfBoxExperienceSettings.hidePrivacySettings = $false
+                $current.outOfBoxExperienceSettings.hideEscapeLink = $false
+                $current.hybridAzureADJoinSkipConnectivityCheck = $false
+                $current.EnableWhiteGlove = $false
+                $current.outOfBoxExperienceSettings.hideEULA = $false
+                $current.outOfBoxExperienceSettings.hidePrivacySettings = $false
+                $current.outOfBoxExperienceSettings.hideEscapeLink = $false
+                $current.outOfBoxExperienceSettings.skipKeyboardSelectionPage = $false
+                $current.outOfBoxExperienceSettings.userType = "standard"
+            }
 
-    # Clean up unneeded properties
-    $current.PSObject.Properties.Remove("lastModifiedDateTime")
-    $current.PSObject.Properties.Remove("createdDateTime") 
-    $current.PSObject.Properties.Remove("@odata.context")
-    $current.PSObject.Properties.Remove("id")
-    $current.PSObject.Properties.Remove("roleScopeTagIds")
+            # Clean up unneeded properties
+            $current.PSObject.Properties.Remove("lastModifiedDateTime")
+            $current.PSObject.Properties.Remove("createdDateTime") 
+            $current.PSObject.Properties.Remove("@odata.context")
+            $current.PSObject.Properties.Remove("id")
+            $current.PSObject.Properties.Remove("roleScopeTagIds")
 
-    # Defining Variables
-    $graphApiVersion = "beta"
-    $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
-    $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
-    $json = ($current | ConvertTo-JSON).ToString()
+            # Defining Variables
+            $graphApiVersion = "beta"
+            $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
+            $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
+            $json = ($current | ConvertTo-Json).ToString()
     
-    Write-Verbose "PATCH $uri`n$json"
+            Write-Verbose "PATCH $uri`n$json"
 
-    try {
-        Invoke-MGGraphRequest -Uri $uri -Method PATCH -body $json -ContentType "application/json" -OutputType PSObject
-    }
-    catch {
-        Write-Error $_.Exception 
-        break
-    }
+            try {
+                Invoke-MgGraphRequest -Uri $uri -Method PATCH -Body $json -ContentType "application/json" -OutputType PSObject
+            }
+            catch {
+                Write-Error $_.Exception 
+                break
+            }
 
-}
+        }
 
 
-Function New-AutopilotProfile() {
-    <#
+        Function New-AutopilotProfile() {
+            <#
 .SYNOPSIS
 Creates a new Autopilot profile.
  
@@ -1124,48 +1142,48 @@ Create a user-driven AAD profile:
 New-AutopilotProfile -mode UserDrivenAAD -displayName "My testing profile" -Description "Description of my profile" -OOBE_Language "en-us" -OOBE_HideEULA -OOBE_HidePrivacySettings
  
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $true)][string] $displayName,
-        [Parameter(Mandatory = $true)][ValidateSet('UserDrivenAAD', 'UserDrivenAD', 'SelfDeployingAAD')][string] $mode, 
-        [string] $description,
-        [Switch] $ConvertDeviceToAutopilot,
-        [string] $OOBE_language,
-        [Switch] $OOBE_skipKeyboard,
-        [string] $OOBE_NameTemplate,
-        [Switch] $OOBE_EnableWhiteGlove,
-        [Switch] $OOBE_UserTypeAdmin,
-        [Switch] $OOBE_HideEULA,
-        [Switch] $OOBE_hidePrivacySettings,
-        [Switch] $OOBE_HideChangeAccountOpts,
-        [Switch] $OOBE_SkipConnectivityCheck
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $true)][string] $displayName,
+                [Parameter(Mandatory = $true)][ValidateSet('UserDrivenAAD', 'UserDrivenAD', 'SelfDeployingAAD')][string] $mode, 
+                [string] $description,
+                [Switch] $ConvertDeviceToAutopilot,
+                [string] $OOBE_language,
+                [Switch] $OOBE_skipKeyboard,
+                [string] $OOBE_NameTemplate,
+                [Switch] $OOBE_EnableWhiteGlove,
+                [Switch] $OOBE_UserTypeAdmin,
+                [Switch] $OOBE_HideEULA,
+                [Switch] $OOBE_hidePrivacySettings,
+                [Switch] $OOBE_HideChangeAccountOpts,
+                [Switch] $OOBE_SkipConnectivityCheck
+            )
 
-    # Adjust values as needed
-    switch ($mode) {
-        "UserDrivenAAD" { $odataType = "#microsoft.graph.azureADWindowsAutopilotDeploymentProfile"; $usage = "singleUser" }
-        "SelfDeployingAAD" { $odataType = "#microsoft.graph.azureADWindowsAutopilotDeploymentProfile"; $usage = "shared" }
-        "UserDrivenAD" { $odataType = "#microsoft.graph.activeDirectoryWindowsAutopilotDeploymentProfile"; $usage = "singleUser" }
-    }
+            # Adjust values as needed
+            switch ($mode) {
+                "UserDrivenAAD" { $odataType = "#microsoft.graph.azureADWindowsAutopilotDeploymentProfile"; $usage = "singleUser" }
+                "SelfDeployingAAD" { $odataType = "#microsoft.graph.azureADWindowsAutopilotDeploymentProfile"; $usage = "shared" }
+                "UserDrivenAD" { $odataType = "#microsoft.graph.activeDirectoryWindowsAutopilotDeploymentProfile"; $usage = "singleUser" }
+            }
 
-    if ($OOBE_UserTypeAdmin) {        
-        $OOBE_userType = "administrator"
-    }
-    else {        
-        $OOBE_userType = "standard"
-    }        
+            if ($OOBE_UserTypeAdmin) {        
+                $OOBE_userType = "administrator"
+            }
+            else {        
+                $OOBE_userType = "standard"
+            }        
 
-    if ($OOBE_EnableWhiteGlove) {        
-        $OOBE_HideChangeAccountOpts = $True
-    }        
+            if ($OOBE_EnableWhiteGlove) {        
+                $OOBE_HideChangeAccountOpts = $True
+            }        
         
-    # Defining Variables
-    $graphApiVersion = "beta"
-    $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
-    $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
-    if ($mode -eq "UserDrivenAD") {
-        $json = @"
+            # Defining Variables
+            $graphApiVersion = "beta"
+            $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
+            $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
+            if ($mode -eq "UserDrivenAD") {
+                $json = @"
 {
     "@odata.type": "$odataType",
     "displayName": "$displayname",
@@ -1186,9 +1204,9 @@ New-AutopilotProfile -mode UserDrivenAAD -displayName "My testing profile" -Desc
     }
 }
 "@
-    }
-    else {
-        $json = @"
+            }
+            else {
+                $json = @"
 {
     "@odata.type": "$odataType",
     "displayName": "$displayname",
@@ -1208,23 +1226,23 @@ New-AutopilotProfile -mode UserDrivenAAD -displayName "My testing profile" -Desc
     }
 }
 "@
-    }
+            }
 
-    Write-Verbose "POST $uri`n$json"
+            Write-Verbose "POST $uri`n$json"
 
-    try {
-        Invoke-MGGraphRequest -Uri $uri -Method POST -Body $json -ContentType "application/json" -OutputType PSObject
-    }
-    catch {
-        Write-Error $_.Exception 
-        break
-    }
+            try {
+                Invoke-MgGraphRequest -Uri $uri -Method POST -Body $json -ContentType "application/json" -OutputType PSObject
+            }
+            catch {
+                Write-Error $_.Exception 
+                break
+            }
 
-}
+        }
 
 
-Function Remove-AutopilotProfile() {
-    <#
+        Function Remove-AutopilotProfile() {
+            <#
 .SYNOPSIS
 Remove a Deployment Profile
 .DESCRIPTION
@@ -1234,33 +1252,33 @@ Mandatory, the ID (GUID) of the profile to be removed.
 .EXAMPLE
 Remove-AutopilotProfile -id $id
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $True, ValueFromPipelineByPropertyName = $True)] $id
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $True, ValueFromPipelineByPropertyName = $True)] $id
+            )
 
-    Process {
-        # Defining Variables
-        $graphApiVersion = "beta"
-        $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
+            Process {
+                # Defining Variables
+                $graphApiVersion = "beta"
+                $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
 
-        Write-Verbose "DELETE $uri"
+                Write-Verbose "DELETE $uri"
 
-        Try {
-            Invoke-MGGraphRequest -Uri $uri -Method DELETE
+                Try {
+                    Invoke-MgGraphRequest -Uri $uri -Method DELETE
+                }
+                catch {
+                    Write-Error $_.Exception 
+                    break
+                }
+            }
         }
-        catch {
-            Write-Error $_.Exception 
-            break
-        }
-    }
-}
 
 
-Function Get-AutopilotProfileAssignments() {
-    <#
+        Function Get-AutopilotProfileAssignments() {
+            <#
 .SYNOPSIS
 List all assigned devices for a specific profile ID
 .DESCRIPTION
@@ -1270,45 +1288,45 @@ Type: Integer - Mandatory, the ID (GUID) of the profile to be retrieved.
 .EXAMPLE
 Get-AutopilotProfileAssignments -id $id
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id
+            )
 
-    Process {
+            Process {
 
-        # Defining Variables
-        $graphApiVersion = "beta"
-        $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id/assignments"
+                # Defining Variables
+                $graphApiVersion = "beta"
+                $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id/assignments"
 
-        Write-Verbose "GET $uri"
+                Write-Verbose "GET $uri"
 
-        try {
-            $response = Invoke-MGGraphRequest -Uri $uri -Method Get
-            $Group_ID = $response.Value.target.groupId
-            ForEach ($Group in $Group_ID) {
-                Try {
-                    Get-MgGroup | where-object { $_.ObjectId -like $Group }
+                try {
+                    $response = Invoke-MgGraphRequest -Uri $uri -Method Get
+                    $Group_ID = $response.Value.target.groupId
+                    ForEach ($Group in $Group_ID) {
+                        Try {
+                            Get-MgGroup | Where-Object { $_.ObjectId -like $Group }
+                        }
+                        Catch {
+                            $Group
+                        }            
+                    }
                 }
-                Catch {
-                    $Group
-                }            
+                catch {
+                    Write-Error $_.Exception 
+                    break
+                }
+
             }
-        }
-        catch {
-            Write-Error $_.Exception 
-            break
+
         }
 
-    }
 
-}
-
-
-Function Remove-AutopilotProfileAssignments() {
-    <#
+        Function Remove-AutopilotProfileAssignments() {
+            <#
 .SYNOPSIS
 Removes a specific group assigntion for a specifc deployment profile
 .DESCRIPTION
@@ -1320,35 +1338,35 @@ Type: Integer - Mandatory, the ID of the group
 .EXAMPLE
 Remove-AutopilotProfileAssignments -id $id
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $true)]$id,
-        [Parameter(Mandatory = $true)]$groupid
-    )
-    # Defining Variables
-    $graphApiVersion = "beta"
-    $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $true)]$id,
+                [Parameter(Mandatory = $true)]$groupid
+            )
+            # Defining Variables
+            $graphApiVersion = "beta"
+            $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
     
-    $full_assignment_id = $id + "_" + $groupid + "_0"
+            $full_assignment_id = $id + "_" + $groupid + "_0"
 
-    $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id/assignments/$full_assignment_id"
+            $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id/assignments/$full_assignment_id"
 
-    Write-Verbose "DELETE $uri"
+            Write-Verbose "DELETE $uri"
 
-    try {
-        Invoke-MGGraphRequest -Uri $uri -Method DELETE
-    }
-    catch {
-        Write-Error $_.Exception 
-        break
-    }
+            try {
+                Invoke-MgGraphRequest -Uri $uri -Method DELETE
+            }
+            catch {
+                Write-Error $_.Exception 
+                break
+            }
 
-}
+        }
 
 
-Function Set-AutopilotProfileAssignedGroup() {
-    <#
+        Function Set-AutopilotProfileAssignedGroup() {
+            <#
 .SYNOPSIS
 Assigns a group to a Windows Autopilot profile.
 .DESCRIPTION
@@ -1360,20 +1378,20 @@ Type: Integer - Mandatory, the ID of the group
 .EXAMPLE
 Set-AutopilotProfileAssignedGroup -id $id -groupid $groupid
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $true)]$id,
-        [Parameter(Mandatory = $true)]$groupid
-    )
-    $full_assignment_id = $id + "_" + $groupid + "_0"  
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $true)]$id,
+                [Parameter(Mandatory = $true)]$groupid
+            )
+            $full_assignment_id = $id + "_" + $groupid + "_0"  
   
-    # Defining Variables
-    $graphApiVersion = "beta"
-    $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"        
-    $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id/assignments"        
+            # Defining Variables
+            $graphApiVersion = "beta"
+            $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"        
+            $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id/assignments"        
 
-    $json = @"
+            $json = @"
 {
     "id": "$full_assignment_id",
     "target": {
@@ -1383,20 +1401,20 @@ Set-AutopilotProfileAssignedGroup -id $id -groupid $groupid
 }
 "@
 
-    Write-Verbose "POST $uri`n$json"
+            Write-Verbose "POST $uri`n$json"
 
-    try {
-        Invoke-MGGraphRequest -Uri $uri -Method Post -Body $json -ContentType "application/json" -OutputType PSObject
-    }
-    catch {
-        Write-Error $_.Exception 
-        break
-    }
-}
+            try {
+                Invoke-MgGraphRequest -Uri $uri -Method Post -Body $json -ContentType "application/json" -OutputType PSObject
+            }
+            catch {
+                Write-Error $_.Exception 
+                break
+            }
+        }
 
 
-Function Get-EnrollmentStatusPage() {
-    <#
+        Function Get-EnrollmentStatusPage() {
+            <#
 .SYNOPSIS
 List enrollment status page
 .DESCRIPTION
@@ -1407,44 +1425,44 @@ The ID (GUID) of the status page (optional)
 Get-EnrollmentStatusPage
 #>
 
-    [cmdletbinding()]
-    param
-    (
-        [Parameter()] $id
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter()] $id
+            )
 
-    # Defining Variables
-    $graphApiVersion = "beta"
-    $Resource = "deviceManagement/deviceEnrollmentConfigurations"
+            # Defining Variables
+            $graphApiVersion = "beta"
+            $Resource = "deviceManagement/deviceEnrollmentConfigurations"
 
-    if ($id) {
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
-    }
-    else {
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
-    }
+            if ($id) {
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
+            }
+            else {
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
+            }
 
-    Write-Verbose "GET $uri"
+            Write-Verbose "GET $uri"
 
-    try {
-        $response = Invoke-MGGraphRequest -Uri $uri -Method Get -OutputType PSObject
-        if ($id) {
-            $response
+            try {
+                $response = Invoke-MgGraphRequest -Uri $uri -Method Get -OutputType PSObject
+                if ($id) {
+                    $response
+                }
+                else {
+                    $response.Value | Where-Object { $_.'@odata.type' -eq "#microsoft.graph.windows10EnrollmentCompletionPageConfiguration" }
+                }
+            }
+            catch {
+                Write-Error $_.Exception 
+                break
+            }
+
         }
-        else {
-            $response.Value | where-object { $_.'@odata.type' -eq "#microsoft.graph.windows10EnrollmentCompletionPageConfiguration" }
-        }
-    }
-    catch {
-        Write-Error $_.Exception 
-        break
-    }
-
-}
 
 
-Function Add-EnrollmentStatusPage() {
-    <#
+        Function Add-EnrollmentStatusPage() {
+            <#
 .SYNOPSIS
 Adds a new Windows Autopilot Enrollment Status Page.
 .DESCRIPTION
@@ -1470,42 +1488,42 @@ Type: Integer - Configure the option: Show error when installation takes longer 
 .EXAMPLE
 Add-EnrollmentStatusPage -Message "Oops an error occured, please contact your support" -HideProgress $True -AllowResetOnError $True
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $True)][string]$DisplayName,
-        [string]$Description,        
-        [bool]$HideProgress,    
-        [bool]$AllowCollectLogs,
-        [bool]$blockDeviceSetupRetryByUser,    
-        [string]$Message,    
-        [bool]$AllowUseOnFailure,
-        [bool]$AllowResetOnError,    
-        [bool]$BlockDeviceUntilComplete,                
-        [Int]$TimeoutInMinutes        
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $True)][string]$DisplayName,
+                [string]$Description,        
+                [bool]$HideProgress,    
+                [bool]$AllowCollectLogs,
+                [bool]$blockDeviceSetupRetryByUser,    
+                [string]$Message,    
+                [bool]$AllowUseOnFailure,
+                [bool]$AllowResetOnError,    
+                [bool]$BlockDeviceUntilComplete,                
+                [Int]$TimeoutInMinutes        
+            )
 
-    If ($HideProgress -eq $False) {
-        $blockDeviceSetupRetryByUser = $true
-    }
+            If ($HideProgress -eq $False) {
+                $blockDeviceSetupRetryByUser = $true
+            }
 
-    If (($Description -eq $null)) {
-        $Description = $EnrollmentPage_Description
-    }        
+            If (($Description -eq $null)) {
+                $Description = $EnrollmentPage_Description
+            }        
 
-    If (($DisplayName -eq $null)) {
-        $DisplayName = ""
-    }    
+            If (($DisplayName -eq $null)) {
+                $DisplayName = ""
+            }    
 
-    If (($TimeoutInMinutes -eq "")) {
-        $TimeoutInMinutes = "60"
-    }                
+            If (($TimeoutInMinutes -eq "")) {
+                $TimeoutInMinutes = "60"
+            }                
 
-    # Defining Variables
-    $graphApiVersion = "beta"
-    $Resource = "deviceManagement/deviceEnrollmentConfigurations"
-    $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
-    $json = @"
+            # Defining Variables
+            $graphApiVersion = "beta"
+            $Resource = "deviceManagement/deviceEnrollmentConfigurations"
+            $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
+            $json = @"
 {
     "@odata.type": "#microsoft.graph.windows10EnrollmentCompletionPageConfiguration",
     "displayName": "$DisplayName",
@@ -1520,21 +1538,21 @@ Add-EnrollmentStatusPage -Message "Oops an error occured, please contact your su
 }
 "@
 
-    Write-Verbose "POST $uri`n$json"
+            Write-Verbose "POST $uri`n$json"
 
-    try {
-        Invoke-MgGraphRequest -Uri $uri -Method Post -Body $json -ContentType "application/json" -OutputType PSObject
-    }
-    catch {
-        Write-Error $_.Exception 
-        break
-    }
+            try {
+                Invoke-MgGraphRequest -Uri $uri -Method Post -Body $json -ContentType "application/json" -OutputType PSObject
+            }
+            catch {
+                Write-Error $_.Exception 
+                break
+            }
 
-}
+        }
 
 
-Function Set-EnrollmentStatusPage() {
-    <#
+        Function Set-EnrollmentStatusPage() {
+            <#
 .SYNOPSIS
 Sets Windows Autopilot Enrollment Status Page properties.
 .DESCRIPTION
@@ -1562,78 +1580,78 @@ Type: Integer - Configure the option: Show error when installation takes longer 
 .EXAMPLE
 Set-EnrollmentStatusPage -id $id -Message "Oops an error occured, please contact your support" -HideProgress $True -AllowResetOnError $True
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id,
-        [string]$DisplayName,    
-        [string]$Description,        
-        [bool]$HideProgress,
-        [bool]$AllowCollectLogs,
-        [string]$Message,    
-        [bool]$AllowUseOnFailure,
-        [bool]$AllowResetOnError,    
-        [bool]$AllowUseOnError,    
-        [bool]$BlockDeviceUntilComplete,                
-        [Int]$TimeoutInMinutes        
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $True)] $id,
+                [string]$DisplayName,    
+                [string]$Description,        
+                [bool]$HideProgress,
+                [bool]$AllowCollectLogs,
+                [string]$Message,    
+                [bool]$AllowUseOnFailure,
+                [bool]$AllowResetOnError,    
+                [bool]$AllowUseOnError,    
+                [bool]$BlockDeviceUntilComplete,                
+                [Int]$TimeoutInMinutes        
+            )
 
-    Process {
+            Process {
 
-        # LIST EXISTING VALUES FOR THE SELECTING STAUS PAGE
-        # Default profile values
-        $EnrollmentPage_Values = Get-EnrollmentStatusPage -ID $id
-        $EnrollmentPage_DisplayName = $EnrollmentPage_Values.displayName
-        $EnrollmentPage_Description = $EnrollmentPage_Values.description
-        $EnrollmentPage_showInstallationProgress = $EnrollmentPage_Values.showInstallationProgress
-        $EnrollmentPage_blockDeviceSetupRetryByUser = $EnrollmentPage_Values.blockDeviceSetupRetryByUser
-        $EnrollmentPage_allowDeviceResetOnInstallFailure = $EnrollmentPage_Values.allowDeviceResetOnInstallFailure
-        $EnrollmentPage_allowLogCollectionOnInstallFailure = $EnrollmentPage_Values.allowLogCollectionOnInstallFailure
-        $EnrollmentPage_customErrorMessage = $EnrollmentPage_Values.customErrorMessage
-        $EnrollmentPage_installProgressTimeoutInMinutes = $EnrollmentPage_Values.installProgressTimeoutInMinutes
-        $EnrollmentPage_allowDeviceUseOnInstallFailure = $EnrollmentPage_Values.allowDeviceUseOnInstallFailure
+                # LIST EXISTING VALUES FOR THE SELECTING STAUS PAGE
+                # Default profile values
+                $EnrollmentPage_Values = Get-EnrollmentStatusPage -id $id
+                $EnrollmentPage_DisplayName = $EnrollmentPage_Values.displayName
+                $EnrollmentPage_Description = $EnrollmentPage_Values.description
+                $EnrollmentPage_showInstallationProgress = $EnrollmentPage_Values.showInstallationProgress
+                $EnrollmentPage_blockDeviceSetupRetryByUser = $EnrollmentPage_Values.blockDeviceSetupRetryByUser
+                $EnrollmentPage_allowDeviceResetOnInstallFailure = $EnrollmentPage_Values.allowDeviceResetOnInstallFailure
+                $EnrollmentPage_allowLogCollectionOnInstallFailure = $EnrollmentPage_Values.allowLogCollectionOnInstallFailure
+                $EnrollmentPage_customErrorMessage = $EnrollmentPage_Values.customErrorMessage
+                $EnrollmentPage_installProgressTimeoutInMinutes = $EnrollmentPage_Values.installProgressTimeoutInMinutes
+                $EnrollmentPage_allowDeviceUseOnInstallFailure = $EnrollmentPage_Values.allowDeviceUseOnInstallFailure
 
-        If (!($HideProgress)) {
-            $HideProgress = $EnrollmentPage_showInstallationProgress
-        }    
+                If (!($HideProgress)) {
+                    $HideProgress = $EnrollmentPage_showInstallationProgress
+                }    
     
-        If (!($BlockDeviceUntilComplete)) {
-            $BlockDeviceUntilComplete = $EnrollmentPage_blockDeviceSetupRetryByUser
-        }        
+                If (!($BlockDeviceUntilComplete)) {
+                    $BlockDeviceUntilComplete = $EnrollmentPage_blockDeviceSetupRetryByUser
+                }        
         
-        If (!($AllowCollectLogs)) {
-            $AllowCollectLogs = $EnrollmentPage_allowLogCollectionOnInstallFailure
-        }            
+                If (!($AllowCollectLogs)) {
+                    $AllowCollectLogs = $EnrollmentPage_allowLogCollectionOnInstallFailure
+                }            
     
-        If (!($AllowUseOnFailure)) {
-            $AllowUseOnFailure = $EnrollmentPage_allowDeviceUseOnInstallFailure
-        }    
+                If (!($AllowUseOnFailure)) {
+                    $AllowUseOnFailure = $EnrollmentPage_allowDeviceUseOnInstallFailure
+                }    
 
-        If (($Message -eq "")) {
-            $Message = $EnrollmentPage_customErrorMessage
-        }        
+                If (($Message -eq "")) {
+                    $Message = $EnrollmentPage_customErrorMessage
+                }        
         
-        If (($Description -eq $null)) {
-            $Description = $EnrollmentPage_Description
-        }        
+                If (($Description -eq $null)) {
+                    $Description = $EnrollmentPage_Description
+                }        
 
-        If (($DisplayName -eq $null)) {
-            $DisplayName = $EnrollmentPage_DisplayName
-        }    
+                If (($DisplayName -eq $null)) {
+                    $DisplayName = $EnrollmentPage_DisplayName
+                }    
 
-        If (!($AllowResetOnError)) {
-            $AllowResetOnError = $EnrollmentPage_allowDeviceResetOnInstallFailure
-        }    
+                If (!($AllowResetOnError)) {
+                    $AllowResetOnError = $EnrollmentPage_allowDeviceResetOnInstallFailure
+                }    
 
-        If (($TimeoutInMinutes -eq "")) {
-            $TimeoutInMinutes = $EnrollmentPage_installProgressTimeoutInMinutes
-        }                
+                If (($TimeoutInMinutes -eq "")) {
+                    $TimeoutInMinutes = $EnrollmentPage_installProgressTimeoutInMinutes
+                }                
 
-        # Defining Variables
-        $graphApiVersion = "beta"
-        $Resource = "deviceManagement/deviceEnrollmentConfigurations"
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
-        $json = @"
+                # Defining Variables
+                $graphApiVersion = "beta"
+                $Resource = "deviceManagement/deviceEnrollmentConfigurations"
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
+                $json = @"
 {
     "@odata.type": "#microsoft.graph.windows10EnrollmentCompletionPageConfiguration",
     "displayName": "$DisplayName",
@@ -1648,23 +1666,23 @@ Set-EnrollmentStatusPage -id $id -Message "Oops an error occured, please contact
 }
 "@
 
-        Write-Verbose "PATCH $uri`n$json"
+                Write-Verbose "PATCH $uri`n$json"
 
-        try {
-            Invoke-MgGraphRequest -Uri $uri -Method PATCH -body $json -ContentType "application/json" -OutputType PSObject
+                try {
+                    Invoke-MgGraphRequest -Uri $uri -Method PATCH -Body $json -ContentType "application/json" -OutputType PSObject
+                }
+                catch {
+                    Write-Error $_.Exception 
+                    break
+                }
+
+            }
+
         }
-        catch {
-            Write-Error $_.Exception 
-            break
-        }
-
-    }
-
-}
 
 
-Function Remove-EnrollmentStatusPage() {
-    <#
+        Function Remove-EnrollmentStatusPage() {
+            <#
 .SYNOPSIS
 Remove a specific enrollment status page
 .DESCRIPTION
@@ -1674,36 +1692,36 @@ Mandatory, the ID (GUID) of the profile to be retrieved.
 .EXAMPLE
 Remove-EnrollmentStatusPage -id $id
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $True, ValueFromPipelineByPropertyName = $True)] $id
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $True, ValueFromPipelineByPropertyName = $True)] $id
+            )
 
-    Process {
+            Process {
 
-        # Defining Variables
-        $graphApiVersion = "beta"
-        $Resource = "deviceManagement/deviceEnrollmentConfigurations"
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
+                # Defining Variables
+                $graphApiVersion = "beta"
+                $Resource = "deviceManagement/deviceEnrollmentConfigurations"
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
 
-        Write-Verbose "DELETE $uri"
+                Write-Verbose "DELETE $uri"
 
-        try {
-            Invoke-MgGraphRequest -Uri $uri -Method DELETE
+                try {
+                    Invoke-MgGraphRequest -Uri $uri -Method DELETE
+                }
+                catch {
+                    Write-Error $_.Exception 
+                    break
+                }
+
+            }
+
         }
-        catch {
-            Write-Error $_.Exception 
-            break
-        }
-
-    }
-
-}
 
 
-Function Invoke-AutopilotSync() {
-    <#
+        Function Invoke-AutopilotSync() {
+            <#
 .SYNOPSIS
 Initiates a synchronization of Windows Autopilot devices between the Autopilot deployment service and Intune.
  
@@ -1718,29 +1736,29 @@ Initiate a synchronization.
  
 Invoke-AutopilotSync
 #>
-    [cmdletbinding()]
-    param
-    (
-    )
-    # Defining Variables
-    $graphApiVersion = "beta"
-    $Resource = "deviceManagement/windowsAutopilotSettings/sync"
-    $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
+            [cmdletbinding()]
+            param
+            (
+            )
+            # Defining Variables
+            $graphApiVersion = "beta"
+            $Resource = "deviceManagement/windowsAutopilotSettings/sync"
+            $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
 
-    Write-Verbose "POST $uri"
+            Write-Verbose "POST $uri"
 
-    try {
-        Invoke-MgGraphRequest -Uri $uri -Method Post
-    }
-    catch {
-        Write-Error $_.Exception 
-        break
-    }
+            try {
+                Invoke-MgGraphRequest -Uri $uri -Method Post
+            }
+            catch {
+                Write-Error $_.Exception 
+                break
+            }
 
-}
+        }
 
-Function Get-AutopilotSyncInfo() {
-    <#
+        Function Get-AutopilotSyncInfo() {
+            <#
     .SYNOPSIS
     Returns details about the last Autopilot sync.
      
@@ -1752,32 +1770,32 @@ Function Get-AutopilotSyncInfo() {
     .EXAMPLE
     Get-AutopilotSyncInfo
     #>
-    [cmdletbinding()]
-    param
-    (
-    )
-    # Defining Variables
-    $graphApiVersion = "beta"
-    $Resource = "deviceManagement/windowsAutopilotSettings"
-    $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
+            [cmdletbinding()]
+            param
+            (
+            )
+            # Defining Variables
+            $graphApiVersion = "beta"
+            $Resource = "deviceManagement/windowsAutopilotSettings"
+            $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
     
-    Write-Verbose "GET $uri"
+            Write-Verbose "GET $uri"
     
-    try {
-        Invoke-MGGraphRequest -Uri $uri -Method Get -OutputType PSObject
-    }
-    catch {
-        Write-Error $_.Exception 
-        break
-    }
+            try {
+                Invoke-MgGraphRequest -Uri $uri -Method Get -OutputType PSObject
+            }
+            catch {
+                Write-Error $_.Exception 
+                break
+            }
     
-}
+        }
     
-#endregion
+        #endregion
 
 
-Function Import-AutopilotCSV() {
-    <#
+        Function Import-AutopilotCSV() {
+            <#
 .SYNOPSIS
 Adds a batch of new devices into Windows Autopilot.
  
@@ -1795,65 +1813,65 @@ Add a batch of devices to Windows Autopilot for the current Azure AD tenant.
  
 Import-AutopilotCSV -csvFile C:\Devices.csv
 #>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $true)] $csvFile,
-        [Parameter(Mandatory = $false)] [Alias("orderIdentifier")] $groupTag = ""
-    )
+            [cmdletbinding()]
+            param
+            (
+                [Parameter(Mandatory = $true)] $csvFile,
+                [Parameter(Mandatory = $false)] [Alias("orderIdentifier")] $groupTag = ""
+            )
     
-    # Read CSV and process each device
-    $devices = Import-CSV $csvFile
-    $importedDevices = @()
-    foreach ($device in $devices) {
-        if ($groupTag -ne "") {
-            $o = $groupTag
-        }
-        elseif ($device.'Group Tag' -ne "") {
-            $o = $device.'Group Tag'
-        }
-        else {
-            $o = $device.'OrderID'
-        }
-        Add-AutopilotImportedDevice -serialNumber $device.'Device Serial Number' -hardwareIdentifier $device.'Hardware Hash' -groupTag $o -assignedUser $device.'Assigned User'
-    }
+            # Read CSV and process each device
+            $devices = Import-Csv $csvFile
+            $importedDevices = @()
+            foreach ($device in $devices) {
+                if ($groupTag -ne "") {
+                    $o = $groupTag
+                }
+                elseif ($device.'Group Tag' -ne "") {
+                    $o = $device.'Group Tag'
+                }
+                else {
+                    $o = $device.'OrderID'
+                }
+                Add-AutopilotImportedDevice -serialNumber $device.'Device Serial Number' -hardwareIdentifier $device.'Hardware Hash' -groupTag $o -assignedUser $device.'Assigned User'
+            }
 
-    # While we could keep a list of all the IDs that we added and then check each one, it is
-    # easier to just loop through all of them
-    $processingCount = 1
-    while ($processingCount -gt 0) {
-        $deviceStatuses = @(Get-AutopilotImportedDevice)
-        $deviceCount = $deviceStatuses.Length
+            # While we could keep a list of all the IDs that we added and then check each one, it is
+            # easier to just loop through all of them
+            $processingCount = 1
+            while ($processingCount -gt 0) {
+                $deviceStatuses = @(Get-AutopilotImportedDevice)
+                $deviceCount = $deviceStatuses.Length
 
-        # Check to see if any devices are still processing
-        $processingCount = 0
-        foreach ($device in $deviceStatuses) {
-            if ($device.state.deviceImportStatus -eq "unknown") {
-                $processingCount = $processingCount + 1
+                # Check to see if any devices are still processing
+                $processingCount = 0
+                foreach ($device in $deviceStatuses) {
+                    if ($device.state.deviceImportStatus -eq "unknown") {
+                        $processingCount = $processingCount + 1
+                    }
+                }
+                Write-Host "Waiting for $processingCount of $deviceCount"
+
+                # Still processing? Sleep before trying again.
+                if ($processingCount -gt 0) {
+                    Start-Sleep 15
+                }
+            }
+
+            # Display the statuses
+            $deviceStatuses | ForEach-Object {
+                Write-Host "Serial number $($_.serialNumber): $($_.state.deviceImportStatus) $($_.state.deviceErrorCode) $($_.state.deviceErrorName)"
+            }
+
+            # Cleanup the imported device records
+            $deviceStatuses | ForEach-Object {
+                Remove-AutopilotImportedDevice -id $_.id
             }
         }
-        Write-Host "Waiting for $processingCount of $deviceCount"
-
-        # Still processing? Sleep before trying again.
-        if ($processingCount -gt 0) {
-            Start-Sleep 15
-        }
-    }
-
-    # Display the statuses
-    $deviceStatuses | ForEach-Object {
-        Write-Host "Serial number $($_.serialNumber): $($_.state.deviceImportStatus) $($_.state.deviceErrorCode) $($_.state.deviceErrorName)"
-    }
-
-    # Cleanup the imported device records
-    $deviceStatuses | ForEach-Object {
-        Remove-AutopilotImportedDevice -id $_.id
-    }
-}
 
 
-Function Get-AutopilotEvent() {
-    <#
+        Function Get-AutopilotEvent() {
+            <#
 .SYNOPSIS
 Gets Windows Autopilot deployment events.
  
@@ -1865,63 +1883,63 @@ Get a list of all Windows Autopilot events
  
 Get-AutopilotEvent
 #>
-    [cmdletbinding()]
-    param
-    (
-    )
+            [cmdletbinding()]
+            param
+            (
+            )
 
-    Process {
+            Process {
 
-        # Defining Variables
-        $graphApiVersion = "beta"
-        $Resource = "deviceManagement/autopilotEvents"
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)"
+                # Defining Variables
+                $graphApiVersion = "beta"
+                $Resource = "deviceManagement/autopilotEvents"
+                $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)"
 
-        try {
-            $response = Invoke-MgGraphRequest -Uri $uri -Method Get -OutputType PSObject
-            $devices = $response.value
-            $devicesNextLink = $response."@odata.nextLink"
+                try {
+                    $response = Invoke-MgGraphRequest -Uri $uri -Method Get -OutputType PSObject
+                    $devices = $response.value
+                    $devicesNextLink = $response."@odata.nextLink"
     
-            while ($null -ne $devicesNextLink) {
-                $devicesResponse = (Invoke-MgGraphRequest -Uri $devicesNextLink -Method Get -OutputType PSObject)
-                $devicesNextLink = $devicesResponse."@odata.nextLink"
-                $devices += $devicesResponse.value
+                    while ($null -ne $devicesNextLink) {
+                        $devicesResponse = (Invoke-MgGraphRequest -Uri $devicesNextLink -Method Get -OutputType PSObject)
+                        $devicesNextLink = $devicesResponse."@odata.nextLink"
+                        $devices += $devicesResponse.value
+                    }
+    
+                    $devices
+                }
+                catch {
+                    Write-Error $_.Exception 
+                    break
+                }
+            }
+        }
+
+        function getdevicesandusers() {
+            $alldevices = getallpagination -url "https://graph.microsoft.com/beta/devicemanagement/manageddevices"
+            $outputarray = @()
+            foreach ($value in $alldevices) {
+                $objectdetails = [pscustomobject]@{
+                    DeviceID        = $value.id
+                    DeviceName      = $value.deviceName
+                    OSVersion       = $value.operatingSystem
+                    PrimaryUser     = $value.userPrincipalName
+                    operatingSystem = $value.operatingSystem
+                    AADID           = $value.azureActiveDirectoryDeviceId
+                    SerialNumber    = $value.serialnumber
+
+                }
+    
+    
+                $outputarray += $objectdetails
+    
             }
     
-            $devices
+            return $outputarray
         }
-        catch {
-            Write-Error $_.Exception 
-            break
-        }
-    }
-}
 
-function getdevicesandusers() {
-    $alldevices = getallpagination -url "https://graph.microsoft.com/beta/devicemanagement/manageddevices"
-    $outputarray = @()
-    foreach ($value in $alldevices) {
-        $objectdetails = [pscustomobject]@{
-            DeviceID = $value.id
-            DeviceName = $value.deviceName
-            OSVersion = $value.operatingSystem
-            PrimaryUser = $value.userPrincipalName
-            operatingSystem = $value.operatingSystem
-            AADID = $value.azureActiveDirectoryDeviceId
-            SerialNumber = $value.serialnumber
-
-        }
-    
-    
-        $outputarray += $objectdetails
-    
-    }
-    
-    return $outputarray
-    }
-
-    function getallpagination () {
-        <#
+        function getallpagination () {
+            <#
     .SYNOPSIS
     This function is used to grab all items from Graph API that are paginated
     .DESCRIPTION
@@ -1932,24 +1950,24 @@ function getdevicesandusers() {
     .NOTES
      NAME: getallpagination
     #>
-    [cmdletbinding()]
+            [cmdletbinding()]
         
-    param
-    (
-        $url
-    )
-        $response = (Invoke-MgGraphRequest -uri $url -Method Get -OutputType PSObject)
-        $alloutput = $response.value
+            param
+            (
+                $url
+            )
+            $response = (Invoke-MgGraphRequest -Uri $url -Method Get -OutputType PSObject)
+            $alloutput = $response.value
         
-        $alloutputNextLink = $response."@odata.nextLink"
+            $alloutputNextLink = $response."@odata.nextLink"
         
-        while ($null -ne $alloutputNextLink) {
-            $alloutputResponse = (Invoke-MGGraphRequest -Uri $alloutputNextLink -Method Get -outputType PSObject)
-            $alloutputNextLink = $alloutputResponse."@odata.nextLink"
-            $alloutput += $alloutputResponse.value
-        }
+            while ($null -ne $alloutputNextLink) {
+                $alloutputResponse = (Invoke-MgGraphRequest -Uri $alloutputNextLink -Method Get -OutputType PSObject)
+                $alloutputNextLink = $alloutputResponse."@odata.nextLink"
+                $alloutput += $alloutputResponse.value
+            }
         
-        return $alloutput
+            return $alloutput
         }
 
 
@@ -2069,20 +2087,20 @@ End {
     if ($OutputFile -ne "") {
         if ($Append) {
             if (Test-Path $OutputFile) {
-                $computers += Import-CSV -Path $OutputFile
+                $computers += Import-Csv -Path $OutputFile
             }
         }
         if ($Partner) {
-            $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash", "Manufacturer name", "Device model" | ConvertTo-CSV -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
+            $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash", "Manufacturer name", "Device model" | ConvertTo-Csv -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
         }
         elseif ($AssignedUser -ne "") {
-            $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash", "Group Tag", "Assigned User" | ConvertTo-CSV -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
+            $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash", "Group Tag", "Assigned User" | ConvertTo-Csv -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
         }
         elseif ($GroupTag -ne "") {
-            $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash", "Group Tag" | ConvertTo-CSV -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
+            $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash", "Group Tag" | ConvertTo-Csv -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
         }
         else {
-            $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash" | ConvertTo-CSV -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
+            $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash" | ConvertTo-Csv -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
         }
     }
     if ($Online) {
@@ -2093,116 +2111,119 @@ End {
             $importStart = Get-Date
             $imported = @()
             $computers | ForEach-Object {
-                        # Add the devices
-        "Adding New Device serial $($serial)"
-        $importStart = Get-Date
-        $imported = @()
-        $computers | ForEach-Object {
-            $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
-        }
-    }
-}
-    else {
-        
-        Write-Host "Loading all objects. This can take a while on large tenants"
-# $aadDevices = getallpagination -url "https://graph.microsoft.com/beta/devices"
-
-$devices = getdevicesandusers
-
-     $intunedevices = $devices | Where-Object {$_.operatingSystem -eq "Windows"}
-
-        # Update existing devices by Thiago Beier https://twitter.com/thiagobeier https://www.linkedin.com/in/tbeier/
-        
-        $importStart = Get-Date
-        $imported = @()
-        $computers | ForEach-Object {
-            $device = Get-AutopilotDevice | Where-Object {$_.serialNumber -eq "$($serial)"}
-            if ($device) {
-                write-host "Device already exists in Autopilot"
-                $sanityCheckModel = $device.model
-                $sanityCheckLastSeen = $device.lastContactedDateTime.ToString("dddd dd/MM/yyyy hh:mm tt")
-                Write-Host "AutoPilot indicates model is a $sanityCheckModel, last checked-in $sanityCheckLastSeen."
-                ##Check if $delete has been set
-                if ($delete) {
-                    Write-Host "Deleting device from AutoPilot"
-                    Remove-AutopilotDevice -id $device.id
-                    Write-Host "Device deleted from AutoPilot"
-
-                    
-                    $intunedevicetoremove = $intunedevices | Where-Object {$_.SerialNumber -eq "$($serial)"}       
-                    $intunedeviceid = $intunedevicetoremove.DeviceID
-                    $aaddeviceid = $intunedevicetoremove.AADID    
-                    $aaduri = "https://graph.microsoft.com/beta/devices?`$filter=deviceID eq '$aaddeviceid'"
-                    $aadobjectid = ((Invoke-MgGraphRequest -uri $aaduri -Method GET -outputType PSObject).value).id
-                    write-host "Deleting device from Intune"
-                    Invoke-MgGraphRequest -uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices/$intunedeviceid" -Method DELETE
-                    write-host "Deleted device $serial from Intune"
-
-                    write-host "Deleting Device from Entra ID"
-                    Invoke-MgGraphRequest -uri "https://graph.microsoft.com/beta/devices/$aadobjectid" -method DELETE
-                    write-host "Deleted device from Entra"
-
-                    write-host "Adding back to Autopilot"
+                # Add the devices
+                "Adding New Device serial $($serial)"
+                $importStart = Get-Date
+                $imported = @()
+                $computers | ForEach-Object {
                     $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
-
                 }
-                ##Elseif $grouptag is set
-                elseif ($updatetag) {
-                    "Updating Existing Device - Working on device serial $($serial)"
-                    $imported += Set-AutopilotDevice -Id $device.Id -groupTag $GroupTag
-    
-                }
-                else {
-                    ##Prompt to delete or update
-                    $choice = Read-Host "Do you want to delete or update? (delete/update)"
-
-if ($choice -eq "delete") {
-    # Perform delete action
-    Write-Output "You chose to delete."
-    Write-Host "Deleting device from AutoPilot"
-    Remove-AutopilotDevice -id $device.id
-    Write-Host "Device deleted from AutoPilot"
-
-    
-    $intunedevicetoremove = $intunedevices | Where-Object {$_.SerialNumber -eq "$($serial)"}       
-    $intunedeviceid = $intunedevicetoremove.DeviceID
-    $aaddeviceid = $intunedevicetoremove.AADID    
-    $aaduri = "https://graph.microsoft.com/beta/devices?`$filter=deviceID eq '$aaddeviceid'"
-    $aadobjectid = ((Invoke-MgGraphRequest -uri $aaduri -Method GET -outputType PSObject).value).id
-    write-host "Deleting device from Intune"
-    Invoke-MgGraphRequest -uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices/$intunedeviceid" -Method DELETE
-    write-host "Deleted device $serial from Intune"
-
-    write-host "Deleting Device from Entra ID"
-    Invoke-MgGraphRequest -uri "https://graph.microsoft.com/beta/devices/$aadobjectid" -method DELETE
-    write-host "Deleted device from Entra"
-
-    write-host "Adding back to Autopilot"
-    $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
-
-} elseif ($choice -eq "update") {
-    # Perform update action
-    Write-Output "You chose to update."
-    "Updating Existing Device - Working on device serial $($serial)"
-    $imported += Set-AutopilotDevice -Id $device.Id -groupTag $GroupTag
-
-} else {
-    Write-Output "Invalid choice. Please enter 'delete' or 'update'."
-    exit
-}
-                }
-            } else {
-        # Add the devices
-        "Adding New Device serial $($serial)"
-        $importStart = Get-Date
-        $imported = @()
-        $computers | ForEach-Object {
-            $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
-        }
             }
         }
+        else {
         
-    }
+            Write-Host "Loading all objects. This can take a while on large tenants"
+            # $aadDevices = getallpagination -url "https://graph.microsoft.com/beta/devices"
+
+            $devices = getdevicesandusers
+
+            $intunedevices = $devices | Where-Object { $_.operatingSystem -eq "Windows" }
+
+            # Update existing devices by Thiago Beier https://twitter.com/thiagobeier https://www.linkedin.com/in/tbeier/
+        
+            $importStart = Get-Date
+            $imported = @()
+            $computers | ForEach-Object {
+                $device = Get-AutopilotDevice | Where-Object { $_.serialNumber -eq "$($serial)" }
+                if ($device) {
+                    Write-Host "Device already exists in Autopilot"
+                    $sanityCheckModel = $device.model
+                    $sanityCheckLastSeen = $device.lastContactedDateTime.ToString("dddd dd/MM/yyyy hh:mm tt")
+                    Write-Host "AutoPilot indicates model is a $sanityCheckModel, last checked-in $sanityCheckLastSeen."
+                    ##Check if $delete has been set
+                    if ($delete) {
+                        Write-Host "Deleting device from AutoPilot"
+                        Remove-AutopilotDevice -id $device.id
+                        Write-Host "Device deleted from AutoPilot"
+
+                    
+                        $intunedevicetoremove = $intunedevices | Where-Object { $_.SerialNumber -eq "$($serial)" }       
+                        $intunedeviceid = $intunedevicetoremove.DeviceID
+                        $aaddeviceid = $intunedevicetoremove.AADID    
+                        $aaduri = "https://graph.microsoft.com/beta/devices?`$filter=deviceID eq '$aaddeviceid'"
+                        $aadobjectid = ((Invoke-MgGraphRequest -Uri $aaduri -Method GET -OutputType PSObject).value).id
+                        Write-Host "Deleting device from Intune"
+                        Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices/$intunedeviceid" -Method DELETE
+                        Write-Host "Deleted device $serial from Intune"
+
+                        Write-Host "Deleting Device from Entra ID"
+                        Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/devices/$aadobjectid" -Method DELETE
+                        Write-Host "Deleted device from Entra"
+
+                        Write-Host "Adding back to Autopilot"
+                        $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
+
+                    }
+                    ##Elseif $grouptag is set
+                    elseif ($updatetag) {
+                        "Updating Existing Device - Working on device serial $($serial)"
+                        $imported += Set-AutopilotDevice -id $device.Id -groupTag $GroupTag
+    
+                    }
+                    else {
+                        ##Prompt to delete or update
+                        $choice = Read-Host "Do you want to delete or update? (delete/update)"
+
+                        if ($choice -eq "delete") {
+                            # Perform delete action
+                            Write-Output "You chose to delete."
+                            Write-Host "Deleting device from AutoPilot"
+                            Remove-AutopilotDevice -id $device.id
+                            Write-Host "Device deleted from AutoPilot"
+
+    
+                            $intunedevicetoremove = $intunedevices | Where-Object { $_.SerialNumber -eq "$($serial)" }       
+                            $intunedeviceid = $intunedevicetoremove.DeviceID
+                            $aaddeviceid = $intunedevicetoremove.AADID    
+                            $aaduri = "https://graph.microsoft.com/beta/devices?`$filter=deviceID eq '$aaddeviceid'"
+                            $aadobjectid = ((Invoke-MgGraphRequest -Uri $aaduri -Method GET -OutputType PSObject).value).id
+                            Write-Host "Deleting device from Intune"
+                            Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices/$intunedeviceid" -Method DELETE
+                            Write-Host "Deleted device $serial from Intune"
+
+                            Write-Host "Deleting Device from Entra ID"
+                            Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/devices/$aadobjectid" -Method DELETE
+                            Write-Host "Deleted device from Entra"
+
+                            Write-Host "Adding back to Autopilot"
+                            $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
+
+                        }
+                        elseif ($choice -eq "update") {
+                            # Perform update action
+                            Write-Output "You chose to update."
+                            "Updating Existing Device - Working on device serial $($serial)"
+                            $imported += Set-AutopilotDevice -id $device.Id -groupTag $GroupTag
+
+                        }
+                        else {
+                            Write-Output "Invalid choice. Please enter 'delete' or 'update'."
+                            exit
+                        }
+                    }
+                }
+                else {
+                    # Add the devices
+                    "Adding New Device serial $($serial)"
+                    $importStart = Get-Date
+                    $imported = @()
+                    $computers | ForEach-Object {
+                        $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
+                    }
+                }
+            }
+        
+        }
 
         # Wait until the devices have been imported
         $processingCount = 1
@@ -2211,7 +2232,7 @@ if ($choice -eq "delete") {
             $processingCount = 0
             $imported | ForEach-Object {
                 #$device = Get-AutopilotImportedDevice -id $_.id
-                $device = Get-AutopilotImportedDevice | Where-Object {$_.serialNumber -eq "$($serial)"}
+                $device = Get-AutopilotImportedDevice | Where-Object { $_.serialNumber -eq "$($serial)" }
                 if ($device.state.deviceImportStatus -eq "unknown") {
                     $processingCount = $processingCount + 1
                 }
@@ -2260,46 +2281,47 @@ if ($choice -eq "delete") {
         Write-Host "All devices synced. Elapsed time to complete sync: $syncSeconds seconds"
 
         # Cleanup by Thiago Beier https://twitter.com/thiagobeier https://www.linkedin.com/in/tbeier/
-        Get-AutopilotImportedDevice | Where-Object { $_.serialnumber -eq "$serial" } | foreach-object { Remove-AutopilotImportedDevice -id $_.id }
+        Get-AutopilotImportedDevice | Where-Object { $_.serialnumber -eq "$serial" } | ForEach-Object { Remove-AutopilotImportedDevice -id $_.id }
         # Invoke AutopilotSync (When windows autopilot devices GroupTag are updated // changing windows autopilot deployment profiles)
         try {
             Invoke-AutopilotSync -ErrorAction Stop
-        } catch {
+        }
+        catch {
             Write-Host "$($_.exception.message)"
             Write-Host "An error occurred. Waiting for 12,5 minutes before retrying..."
             Start-Sleep -Seconds 750
             Invoke-AutopilotSync
-       }
+        }
 
         # Add the device to the specified AAD group
-    # Add the device to the specified AAD group
-    if ($AddToGroup) {
-		foreach ($ADGroup in $AddToGroup){
-			$aadGroup = Get-MgGroup -Filter "DisplayName eq '$ADGroup'"
-			if ($aadGroup) {
-				$autopilotDevices | ForEach-Object {
-					$uri = "https://graph.microsoft.com/beta/devices?`$filter=deviceId eq '" + $_.azureActiveDirectoryDeviceId + "'"
-					$aadDevice = (Invoke-MgGraphRequest -Uri $uri -Method GET -OutputType PSObject -SkipHttpErrorCheck).value
-					if ($aadDevice) {
-						Write-Host "Adding device $($aadDevice.displayName) to group $ADGroup"
-						New-MgGroupMember -GroupId $aadGroup.Id -DirectoryObjectId $aadDevice.id
-					}
-					else {
-						Write-Error "Unable to find Azure AD device with ID $($aadDevice.deviceId)"
-					}
-				}
-				Write-Host "Added devices to group '$ADGroup' ($($aadGroup.Id))"
-			}
-			else {
-				Write-Error "Unable to find group $ADGroup"
-			}
-		}
-    } #to deal with the array
+        # Add the device to the specified AAD group
+        if ($AddToGroup) {
+            foreach ($ADGroup in $AddToGroup) {
+                $aadGroup = Get-MgGroup -Filter "DisplayName eq '$ADGroup'"
+                if ($aadGroup) {
+                    $autopilotDevices | ForEach-Object {
+                        $uri = "https://graph.microsoft.com/beta/devices?`$filter=deviceId eq '" + $_.azureActiveDirectoryDeviceId + "'"
+                        $aadDevice = (Invoke-MgGraphRequest -Uri $uri -Method GET -OutputType PSObject -SkipHttpErrorCheck).value
+                        if ($aadDevice) {
+                            Write-Host "Adding device $($aadDevice.displayName) to group $ADGroup"
+                            New-MgGroupMember -GroupId $aadGroup.Id -DirectoryObjectId $aadDevice.id
+                        }
+                        else {
+                            Write-Error "Unable to find Azure AD device with ID $($aadDevice.deviceId)"
+                        }
+                    }
+                    Write-Host "Added devices to group '$ADGroup' ($($aadGroup.Id))"
+                }
+                else {
+                    Write-Error "Unable to find group $ADGroup"
+                }
+            }
+        } #to deal with the array
 
         # Assign the computer name
         if ($AssignedComputerName -ne "") {
             $autopilotDevices | ForEach-Object {
-                Set-AutopilotDevice -Id $_.Id -displayName $AssignedComputerName
+                Set-AutopilotDevice -id $_.Id -displayName $AssignedComputerName
             }
         }
 
@@ -2310,7 +2332,7 @@ if ($choice -eq "delete") {
             while ($processingCount -gt 0) {
                 $processingCount = 0
                 $autopilotDevices | ForEach-Object {
-                    $device = Get-AutopilotDevice -id $_.id -Expand
+                    $device = Get-AutopilotDevice -id $_.id -expand
                     if (-not ($device.deploymentProfileAssignmentStatus.StartsWith("assigned"))) {
                         $processingCount = $processingCount + 1
                     }
@@ -2332,25 +2354,25 @@ if ($choice -eq "delete") {
                 ##Find device ID
                 $deviceuri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$filter=serialNumber eq '$serial'"
                 $deviceid = (Invoke-MgGraphRequest -Uri $deviceuri -Method GET -OutputType PSObject -SkipHttpErrorCheck).value.id
-                write-host "Sending a wipe to $deviceid"
+                Write-Host "Sending a wipe to $deviceid"
                 ##Send a wipe
                 $wipeuri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/$deviceid/wipe"
                 $wipebody = @{
                     keepEnrollmentData = $false
-                    keepUserData = $false
+                    keepUserData       = $false
                 }
                 Invoke-MgGraphRequest -Uri $wipeuri -Method POST -Body $wipebody -ContentType "application/json"
-                write-host "Wipe sent to $deviceid"
+                Write-Host "Wipe sent to $deviceid"
             }
             if ($Sysprep) {
                 ##Send a sysprep
                 Start-Process -NoNewWindow -FilePath "C:\windows\system32\sysprep\sysprep.exe" -ArgumentList "/oobe /reboot /quiet"
-                write-host "Sysprep executed"
+                Write-Host "Sysprep executed"
             }
             if ($preprov) {
                 ##Create directory in %temp%
                 $path = $env:TEMP + "\preprov"
-                new-item -Path $path -ItemType Directory
+                New-Item -Path $path -ItemType Directory
                 $uri = "https://github.com/andrew-s-taylor/WindowsAutopilotInfo/raw/main/windowskey-autoit.exe"
                 ##Download it
                 $output = "$path\windowskey-autoit.exe"
