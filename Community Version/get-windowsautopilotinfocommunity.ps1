@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 5.0.0
+.VERSION 5.0.1
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -106,7 +106,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        5.0.0
+Version:        5.0.1
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -2215,7 +2215,7 @@ End {
             $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash", "Group Tag" | ConvertTo-Csv -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
         }
         elseif ($identifier) {
-            $computers | Select-Object "Serial", "Manufacturer", "Model" | ConvertTo-Csv -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Select-Object -Skip 1 | Out-File $OutputFile
+            $computers | Select-Object "Manufacturer", "Model", "Serial" | ConvertTo-Csv -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Select-Object -Skip 1 | Out-File $OutputFile
         }
         else {
             $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash" | ConvertTo-Csv -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
@@ -2226,7 +2226,7 @@ End {
         if ($identifier) {
             if ($InputFile) {
                 ##Import the CSV
-                Import-Csv $InputFile -header "Serial", "Manufacturer", "Model" | ForEach-Object {
+                Import-Csv $InputFile -header "Manufacturer", "Model", "Serial" | ForEach-Object {
                     $serial = $_.Serial
                     $manufacturer = $_.Manufacturer
                     $model = $_.Model
