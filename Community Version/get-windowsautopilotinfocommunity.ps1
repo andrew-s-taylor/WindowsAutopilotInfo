@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 4.0.11
+.VERSION 5.0.0
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -33,6 +33,7 @@ v4.0.8 - Added logic around the sync command & Added AutoIt script for pre-prov
 v4.0.9 - Extended sync timeout
 v4.0.10 - Added array for group
 v4.0.11 - Added cert based MsGraph connection
+v5.0.0 - Added support for device identifiers
 #>
 
 <#
@@ -79,6 +80,10 @@ Removes the device if it already exists
 Updates group tag on existing devices
 .PARAMETER preprov
 Presses Windows key 5 times for whiteglove pre-provisioning
+.PARAMETER identifier
+Creates device identifier.  Can be used with OutputFile or Online.  Can also receive inputs from InputFile
+.PARAMETER InputFile
+CSV file containing multiple device identifiers
 .PARAMETER ChangePK
 Specifies a product key to inject into the OS.  This will cause the computer to reboot.  This should be combined with
 the -Online and -Assign switches.
@@ -101,7 +106,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        4.0.11
+Version:        5.0.0
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -111,6 +116,8 @@ Creation Date:  14/06/2023
 param(
     [Parameter(Mandatory = $False, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True, Position = 0)][alias("DNSHostName", "ComputerName", "Computer")] [String[]] $Name = @("localhost"),
     [Parameter(Mandatory = $False)] [String] $OutputFile = "", 
+    [Parameter(Mandatory = $False)] [String] $InputFile = "", 
+    [Parameter(Mandatory = $False)] [Switch] $identifier = $false, 
     [Parameter(Mandatory = $False)] [String] $GroupTag = "",
     [Parameter(Mandatory = $False)] [String] $AssignedUser = "",
     [Parameter(Mandatory = $False)] [Switch] $Append = $false,
@@ -1970,6 +1977,88 @@ Get-AutopilotEvent
             return $alloutput
         }
 
+        
+        function check-importeddevice {
+            <#
+    .SYNOPSIS
+    This function is used to check if a device identifier (Windows) already exists in the Intune environment
+    .DESCRIPTION
+    This function is used to check if a device identifier (Windows) already exists in the Intune environment
+    .EXAMPLE
+    check-importeddevice -manufacturer "Microsoft Corporation" -model "Virtual Machine" -serial "xxxxx"
+    Returns true or false
+    .NOTES
+    NAME: check-importeddevice
+    #>
+    [cmdletbinding()]
+    
+    param
+    (
+        $manufacturer,
+        $model,
+        $serial
+    )
+    ##Check it exists
+    $uri = "https://graph.microsoft.com/beta/deviceManagement/importedDeviceIdentities/searchExistingIdentities"
+    $json = @"
+    {
+        "importedDeviceIdentities": [
+            {
+                "importedDeviceIdentifier": "$manufacturer,$model,$serial",
+                "importedDeviceIdentityType": "manufacturerModelSerial"
+            }
+        ]
+    }
+"@
+    $response = (Invoke-MgGraphRequest -Uri $uri -Method Post -Body $json -OutputType PSObject).value
+    
+    
+    if (!$response) {
+        return $false
+    } else {
+        return $true
+    }
+    
+    }
+    
+
+function import-deviceidentifier {
+<#
+.SYNOPSIS
+This function is used to import a device identifier (Windows) already exists in the Intune environment
+.DESCRIPTION
+This function is used to import a device identifier (Windows) already exists in the Intune environment
+.EXAMPLE
+import-deviceidentifier -manufacturer "Microsoft Corporation" -model "Virtual Machine" -serial "xxxxx"
+Returns true or false
+.NOTES
+NAME: import-deviceidentifier
+#>
+[cmdletbinding()]
+
+param
+(
+$manufacturer,
+$model,
+$serial
+)
+##Send it
+$uri = "https://graph.microsoft.com/beta/deviceManagement/importedDeviceIdentities/importDeviceIdentityList"
+
+$json = @"
+{
+"importedDeviceIdentities": [
+    {
+        "importedDeviceIdentifier": "$manufacturer,$model,$serial",
+        "importedDeviceIdentityType": "manufacturerModelSerial"
+    }
+],
+"overwriteImportedDeviceIdentities": false
+}
+"@
+Invoke-MgGraphRequest -Uri $uri -Method Post -Body $json -OutputType PSObject
+}
+
 
 
         # Connect
@@ -1992,7 +2081,13 @@ Get-AutopilotEvent
     }
 }
 
+
+
 Process {
+
+    ##Check ImportCSV is empty
+    if ($InputFile -eq "") {
+
     foreach ($comp in $Name) {
         $bad = $false
 
@@ -2008,6 +2103,13 @@ Process {
         Write-Verbose "Checking $comp"
         $serial = (Get-CimInstance -CimSession $session -Class Win32_BIOS).SerialNumber
 
+        if ($identifier) {
+            $cs = Get-CimInstance -CimSession $session -Class Win32_ComputerSystem
+            $make = $cs.Manufacturer.Trim()
+            $model = $cs.Model.Trim()
+            
+        }
+        else {
         # Get the hash (if available)
         $devDetail = (Get-CimInstance -CimSession $session -Namespace root/cimv2/mdm/dmmap -Class MDM_DevDetail_Ext01 -Filter "InstanceID='Ext' AND ParentID='./DevDetail'")
         if ($devDetail -and (-not $Force)) {
@@ -2017,7 +2119,7 @@ Process {
             $bad = $true
             $hash = ""
         }
-
+    
         # If the hash isn't available, get the make and model
         if ($bad -or $Force) {
             $cs = Get-CimInstance -CimSession $session -Class Win32_ComputerSystem
@@ -2031,7 +2133,7 @@ Process {
             $make = ""
             $model = ""
         }
-
+    }
         # Getting the PKID is generally problematic for anyone other than OEMs, so let's skip it here
         $product = ""
 
@@ -2049,6 +2151,14 @@ Process {
             # "Manufacturer Name" = $make
             # "Device Name" = $model
 
+        }
+        elseif ($identifier) {
+            # Create a pipeline object
+            $c = New-Object psobject -Property @{
+                "Serial" = $serial
+                "Manufacturer" = $make
+                "Model" = $model
+            }
         }
         else {
             # Create a pipeline object
@@ -2082,6 +2192,11 @@ Process {
         Remove-CimSession $session
     }
 }
+else {
+    write-host "CSV Imported, skipping device check"
+}
+
+}
 
 End {
     if ($OutputFile -ne "") {
@@ -2099,12 +2214,55 @@ End {
         elseif ($GroupTag -ne "") {
             $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash", "Group Tag" | ConvertTo-Csv -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
         }
+        elseif ($identifier) {
+            $computers | Select-Object "Serial", "Manufacturer", "Model" | ConvertTo-Csv -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Select-Object -Skip 1 | Out-File $OutputFile
+        }
         else {
             $computers | Select-Object "Device Serial Number", "Windows Product ID", "Hardware Hash" | ConvertTo-Csv -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Out-File $OutputFile
         }
     }
     if ($Online) {
 
+        if ($identifier) {
+            if ($InputFile) {
+                ##Import the CSV
+                Import-Csv $InputFile -header "Serial", "Manufacturer", "Model" | ForEach-Object {
+                    $serial = $_.Serial
+                    $manufacturer = $_.Manufacturer
+                    $model = $_.Model
+                    write-host "Checking if device $serial exists in AutoPilot"
+                    $exists = check-importeddevice -manufacturer $manufacturer -model $model -serial $serial
+                    if ($exists -eq $false) {
+                        write-host "Device $serial does not exist in AutoPilot, adding it"
+                        $import = import-deviceidentifier -manufacturer $manufacturer -model $model -serial $serial
+                        write-host "Device $serial added to AutoPilot"
+                    }
+                    else {
+                        write-host "Device $serial already exists in AutoPilot"
+                    }
+                }
+            }
+            else {
+                $computers | ForEach-Object {
+                    $serial = $_.Serial
+                    $manufacturer = $_.Manufacturer
+                    $model = $_.Model
+                    write-host "Checking if device $serial exists in AutoPilot"
+                    $exists = check-importeddevice -manufacturer $manufacturer -model $model -serial $serial
+                    if ($exists -eq $false) {
+                        write-host "Device $serial does not exist in AutoPilot, adding it"
+                        $import = import-deviceidentifier -manufacturer $manufacturer -model $model -serial $serial
+                        write-host "Device $serial added to AutoPilot"
+                    }
+                    else {
+                        write-host "Device $serial already exists in AutoPilot"
+                    }
+                }
+            }
+
+        }
+
+        else {
         ##Check if $newdevice is false
 
         if ($newdevice) {
@@ -2392,13 +2550,14 @@ End {
         }
     }
 }
+}
 
 
 # SIG # Begin signature block
 # MIIoGQYJKoZIhvcNAQcCoIIoCjCCKAYCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAvR1Fqq3VkCljW
-# sYaGAffriAj8odndcCoNeqaXV8AotaCCIRwwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBgnASiCL1imC+3
+# Or1lz0W1wO0AmoU3r5mbGkCEnRib86CCIRwwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2580,33 +2739,33 @@ End {
 # aWduaW5nIFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDp
 # MA0GCWCGSAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJ
 # KoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQB
-# gjcCARUwLwYJKoZIhvcNAQkEMSIEIL90rO4AgHYSlaKyqARYuUnHbyBO4aZtOoKk
-# 1oFMCCmxMA0GCSqGSIb3DQEBAQUABIICAI+0PBo7zo30WSwQJOptD3mvJ39JlJ53
-# exYS8ETrckxbg4+gbqTaqlmG+LG/PxftyEO9BeXoI8aEk1angRvOOX8hFK9dNCSa
-# QtSUfpgFMQJziAhAkzEhd5+Wmng+Q3/+zzeXa90VlHdBFOmpV5ife/vHrJafW1bN
-# MOht4/a/3kb+kC1VO+6Fkjo4hXa0hp7R27dr+mY7cExdjQXGW9eurYMbG+TG+HWB
-# fLuuWLyf7JCruSJ4KUqH5B8iIFsIjU6Be94CQymgszt3AOFZBlOj6X4llYm70PQI
-# 0VUIhQ6m/EtU6krtxwf6QtGIYmqd2ooZmZDZ1wFX/7YI8soSTfajg6rCe+Kb866w
-# SCqamq61YJg0ucxsoQYI++rLc1fuDnHWN3zXYixmrznu7P7HDHml1mONzCb9VFpG
-# /Q9MMGumot+a1ADwvwmbTEkNJWOozxVpsfM/AGcRSLVUn0kUD58+Ftg3p8uIlwUs
-# Guh8mcOAe8QCyVeOVBR/gspEEN21op+GigXDCoxodwLDZPxAdc8+Mwz9hD3ghvIr
-# QavmzYX+onqdquaBPZ6EL8RKpMvm6jwyD/uZj2Bie3ULcTae4arhOy4o/hHP7D/9
-# ankI5Huvhzcrp+PkXV0v95wYYqDSAYY23eI5H26Hg6ijhwWuMVdsAr9vNOTnCrxR
-# Kg/hruzcJpGDoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkG
+# gjcCARUwLwYJKoZIhvcNAQkEMSIEIKU1fe0kmsJNNi2N1axU9noj07KXgXvVgsM4
+# /w0t8VqnMA0GCSqGSIb3DQEBAQUABIICALE2s5ktuA1HmkqStO4onGoNo9Hr7WkI
+# yjByySLcMZFRJ8znboszGDnHcFlo6WTXVj4UHCDbOcfFWFnXIrx2r8Yy+iCFWLG6
+# T5kUR2lIZrb+1fd7DObsfYItl8TvXAPf3laIs7xn+7hIt2DsqzJNinUsZ6PamHfi
+# QweWmDy7h+oojMXQ1XrcmZFGqi8kZnROtsOsdQGNdYC0wYXvLNVXF5sZ4yiFnVal
+# +6NE31hOvDpSJt2oX/Em9viyMw3kPIYKrSYeDP1JSKkJsrZg5AddhrqFyvt3FpRC
+# iPzSbwQwvWD1CqOcNzY+GQ2XCuJz5DHpjfHoRSVlz3DObiDaChoDIM/mSvG5e/a8
+# Vr4LD7mlmYAJzdHMn2SFZ7oBaZy5oGHT8BRMI5x9FiJf5aZJqVphhHeDi1kvCmWS
+# Lbou0vX2DmdRS+6p+wV4/K9Hka8AL62qvzSana3kdz8Aqeci5z0rYfzsPF/Kd63A
+# rZaXkfVCbxgOUhAPuenJ85Vxc/xVwKPNELqZBzCWaWDnsH4PsCEHcXQecwDSALYh
+# 4i+1jtFDULszBInXKWcOxLwKQcdlzCAeCCD1Ug7u9YFQYwhaS/oLuD9hDI0gESak
+# gPTK3ZOq7aoiQe3gSVMvyA7p9AsDmsRfUF1NZgpG5/FDF7DwlYObKwkZXsOm/jaR
+# GlqqzbH4lu0xoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkG
 # A1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdp
 # Q2VydCBUcnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQ
 # BUSv85SdCDmmv9s/X+VhFjANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzEL
-# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI0MDMxOTE3NDEyNVowLwYJKoZI
-# hvcNAQkEMSIEIL3DuPgwm3JPPJLMzYMrjgqHFnIGRgGzgq6URxNc62KXMA0GCSqG
-# SIb3DQEBAQUABIICAGq+bydyCyYUw09zMlQwhp24ieuqil9XRtwqWh8DQ23dOt5r
-# NOFJOk8UQd8eekwIcdAXh8el7roIxjIWWQZzw9kyr5pyuHRBMviAXURwrwwQXrAG
-# L44PwXSdRh/arOKz84lfoi6iBURC4lbKhVSkZHgwhT0ETDERMOe/y4KbTOgbE8I2
-# OkplfNH533tMohWxHuLMZvqT7kzw7hrYB7oLtxXFDHq70aPHRzsVTiGJz79y+YWt
-# 7DG7H0irruUuxxmY2tJQuvvgsRZ98ps2is9ArIQrZ3ooqLRfXWgDbuRMG/ajQDPZ
-# O1K9Abw0o0wKrGL3BNhX4vKtUht7kEs32A9uoSFBGlnG9An//BQpsFzV+yBpWyv2
-# 5HJyyzRpVfPDJJ9UfinI0JSqfTMxnVtsHrEkEsIh5w/Vnt/V4ulFCeATku5GYSlJ
-# tOcgdfWTawyics5tCNbJCvD/Wbvynqx5+hTZWA3mgej0RhrM3mPJ1qDyD1t61CJj
-# vXeazhWa5tq1XoC0I2C4Z6XZgWbSKspquwl9e5KmtBSWKmYRfY+6zrDYePO2aqb/
-# qF4l9ujPsuR5x+MMHwR+ln8llmoxXK1etWCmct7VWxp+RwhmZ3g2yNF4MsvPtQpm
-# DYBsq2X8k+B6usSqzbCGNsp3/KecdVRbUAQKq9KhT+j8D7tQRa0doC1td3Da
+# BgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI0MDYwNTA4NTc0MFowLwYJKoZI
+# hvcNAQkEMSIEIBcg0VAS4ZxzTU2+qIjlzOKhYiyzxHODU2uFLzABgJPnMA0GCSqG
+# SIb3DQEBAQUABIICAIOQaKinOR8ScTNde6PUJlu7P7ZHTTgC9RAVwq4eOY3C9i56
+# Fmbfh334lKqZvMATnnTwlfMgkfguGV1Cek9XFs9gI9YiMFmJYBigBCAE9a4hKN9W
+# fb0vD6JXGfsEGc5TS1EtrSNiuHO0CrXpH1Sn3fCm3er7WiO+bVHpAs+WltO784P/
+# gkknccIRxZ4s0dB8KKUVPtJUOw9Fcsp3ww0uMGbo5y/T4WC5KRDglWhwMqExjQs/
+# wGwzgiBhxQaxcR2ZNEsb/sqYtZHixpx/orhRclFc3e61Tc5oBnfH109lCLBbWXhE
+# ON1TP1gguNYJjZndiW18lO7nIrBV/+JQWMwBm0PXHcJ2GsmNYYA281alXG7lxfqW
+# KVT/uB4DZ9fQL9I2ALKKk9Nq8hQBv2YjrIj9PiKxiQFku7EQP1XVOBj3KTDsYcaZ
+# 1zIzb7afNYafCKX0j6NB30kotElGYV5UhJbhiRVUA/a0+wTXTWOIEOyj9yE2/LQe
+# aySm/LoBNF5VHOTdMZLfXz0J86g66ubcmi+yNr8n20oxxt7iJV9cGI1gjE4NN61D
+# SacgMk/8cfAUIwUFb83AgmaqloTnoGi01t+UywUuSCPeAUg7VDe+RMKmHEH9Wqn1
+# EnzCHupBxCfNYux/ngjgx7ONmf1xj3LpycQWzCD5wtBeBVZ2Icams4vOsWKr
 # SIG # End signature block
