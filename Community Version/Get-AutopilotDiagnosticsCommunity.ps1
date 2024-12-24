@@ -677,7 +677,13 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
                 $events = Get-WinEvent -Path "$($env:TEMP)\ESPStatus.tmp\microsoft-windows-user device registration-admin.evtx" -Oldest | ? { $_.Id -in (306, 101) }
             }
             else {
-                $events = Get-WinEvent -LogName 'Microsoft-Windows-User Device Registration/Admin' -Oldest | ? { $_.Id -in (306, 101) }
+                try {
+                    $events = Get-WinEvent -LogName 'Microsoft-Windows-User Device Registration/Admin' -Oldest -ErrorAction Stop | ? { $_.Id -in (306, 101) }
+                } catch [Exception] {
+                    if ($_.FullyQualifiedErrorId -match "NoMatchingEventsFound") {
+                     $events = @()
+                    }
+                }
             }
             $events | % {
                 $message = $_.Message
