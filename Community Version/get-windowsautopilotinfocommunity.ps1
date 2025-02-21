@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 5.0.3
+.VERSION 5.0.4
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -36,6 +36,7 @@ v4.0.11 - Added cert based MsGraph connection
 v5.0.0 - Added support for device identifiers
 v5.0.2 - Removed dots and commas from make and model
 v5.0.3 - Removed Group and GroupMember scopes if add to group not selected
+v5.0.4 - Switched from Graph Groups module to raw requests
 #>
 
 <#
@@ -67,7 +68,7 @@ Add computers to Windows Autopilot via the Intune Graph API
 .PARAMETER AssignedComputerName
 An optional value specifying the computer name to be assigned to the device. This can only be specified with the -Online switch and only works with AAD join scenarios.
 .PARAMETER AddToGroup
-Specifies the name of the Azure AD group that the new device should be added to.
+Specifies the name of the Entra group that the new device should be added to.
 .PARAMETER Assign
 Wait for the Autopilot profile assignment. (This can take a while for dynamic groups.)
 .PARAMETER Reboot
@@ -108,7 +109,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        5.0.3
+Version:        5.0.4
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -167,24 +168,6 @@ Begin {
         }
         #Import-Module microsoft.graph.authentication -Scope Global
 
-        # Get Microsoft Graph Groups if needed
-        if ($AddToGroup) {
-            $module = Import-Module microsoft.graph.groups -PassThru -ErrorAction Ignore
-            if (-not $module) {
-                Write-Host "Installing module MS Graph Groups"
-                Install-Module microsoft.graph.groups -Force -ErrorAction Ignore
-            }
-            Import-Module microsoft.graph.groups -Scope Global
-
-        }
-
-        $module2 = Import-Module Microsoft.Graph.Identity.DirectoryManagement -PassThru -ErrorAction Ignore
-        if (-not $module2) {
-            Write-Host "Installing module MS Graph Identity Management"
-            Install-Module Microsoft.Graph.Identity.DirectoryManagement -Force -ErrorAction Ignore
-        }
-        Import-Module microsoft.graph.Identity.DirectoryManagement -Scope Global
-
         ##Add functions from module
         Function Connect-ToGraph {
             <#
@@ -192,16 +175,16 @@ Begin {
 Authenticates to the Graph API via the Microsoft.Graph.Authentication module.
  
 .DESCRIPTION
-The Connect-ToGraph cmdlet is a wrapper cmdlet that helps authenticate to the Intune Graph API using the Microsoft.Graph.Authentication module. It leverages an Azure AD app ID and app secret for authentication or user-based auth.
+The Connect-ToGraph cmdlet is a wrapper cmdlet that helps authenticate to the Intune Graph API using the Microsoft.Graph.Authentication module. It leverages an Entra app ID and app secret for authentication or user-based auth.
  
 .PARAMETER Tenant
 Specifies the tenant (e.g. contoso.onmicrosoft.com) to which to authenticate.
  
 .PARAMETER AppId
-Specifies the Azure AD app ID (GUID) for the application that will be used to authenticate.
+Specifies the Entra app ID (GUID) for the application that will be used to authenticate.
  
 .PARAMETER AppSecret
-Specifies the Azure AD app secret corresponding to the app ID that will be used to authenticate.
+Specifies the Entra app secret corresponding to the app ID that will be used to authenticate.
 
 .PARAMETER Scopes
 Specifies the user scopes for interactive authentication.
@@ -258,7 +241,7 @@ Connect-ToGraph -Tenant $tenantID -AppId $app -AppSecret $secret
                         }
 
                         $graph = Connect-MgGraph -AccessToken $accesstokenfinal 
-                        Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+                        Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Entra authentication not supported)"
                     }
                 }
                 else {
@@ -299,7 +282,7 @@ Connect-ToGraph -Tenant $tenantID -AppId $app -AppSecret $secret
 Gets devices currently registered with Windows Autopilot.
  
 .DESCRIPTION
-The Get-AutopilotDevice cmdlet retrieves either the full list of devices registered with Windows Autopilot for the current Azure AD tenant, or a specific device if the ID of the device is specified.
+The Get-AutopilotDevice cmdlet retrieves either the full list of devices registered with Windows Autopilot for the current Entra tenant, or a specific device if the ID of the device is specified.
  
 .PARAMETER id
 Optionally specifies the ID (GUID) for a specific Windows Autopilot device (which is typically returned after importing a new device)
@@ -412,7 +395,7 @@ The user principal name.
 The name to display during Windows Autopilot enrollment. If specified, the userPrincipalName must also be specified.
  
 .PARAMETER displayName
-The name (computer name) to be assigned to the device when it is deployed via Windows Autopilot. This is presently only supported with Azure AD Join scenarios. Note that names should not exceed 15 characters. After setting the name, you need to initiate a sync (Invoke-AutopilotSync) in order to see the name in the Intune object.
+The name (computer name) to be assigned to the device when it is deployed via Windows Autopilot. This is presently only supported with Entra Join scenarios. Note that names should not exceed 15 characters. After setting the name, you need to initiate a sync (Invoke-AutopilotSync) in order to see the name in the Intune object.
  
 .PARAMETER groupTag
 The group tag value to set for the device.
@@ -477,13 +460,13 @@ Set-AutopilotDevice -id $id -userPrincipalName $userPrincipalName -addressableUs
 Removes a specific device currently registered with Windows Autopilot.
  
 .DESCRIPTION
-The Remove-AutopilotDevice cmdlet removes the specified device, identified by its ID, from the list of devices registered with Windows Autopilot for the current Azure AD tenant.
+The Remove-AutopilotDevice cmdlet removes the specified device, identified by its ID, from the list of devices registered with Windows Autopilot for the current Entra tenant.
  
 .PARAMETER id
 Specifies the ID (GUID) for a specific Windows Autopilot device
  
 .EXAMPLE
-Remove all Windows Autopilot devices from the current Azure AD tenant
+Remove all Windows Autopilot devices from the current Entra tenant
  
 Get-AutopilotDevice | Remove-AutopilotDevice
 #>
@@ -524,13 +507,13 @@ Get-AutopilotDevice | Remove-AutopilotDevice
 Gets information about devices being imported into Windows Autopilot.
  
 .DESCRIPTION
-The Get-AutopilotImportedDevice cmdlet retrieves either the full list of devices being imported into Windows Autopilot for the current Azure AD tenant, or information for a specific device if the ID of the device is specified. Once the import is complete, the information instance is expected to be deleted.
+The Get-AutopilotImportedDevice cmdlet retrieves either the full list of devices being imported into Windows Autopilot for the current Entra tenant, or information for a specific device if the ID of the device is specified. Once the import is complete, the information instance is expected to be deleted.
  
 .PARAMETER id
 Optionally specifies the ID (GUID) for a specific Windows Autopilot device being imported.
  
 .EXAMPLE
-Get a list of all devices being imported into Windows Autopilot for the current Azure AD tenant.
+Get a list of all devices being imported into Windows Autopilot for the current Entra tenant.
  
 Get-AutopilotImportedDevice
 #>
@@ -588,7 +571,7 @@ Get-AutopilotImportedDevice
 Adds a new device to Windows Autopilot.
  
 .DESCRIPTION
-The Add-AutopilotImportedDevice cmdlet adds the specified device to Windows Autopilot for the current Azure AD tenant. Note that a status object is returned when this cmdlet completes; the actual import process is performed as a background batch process by the Microsoft Intune service.
+The Add-AutopilotImportedDevice cmdlet adds the specified device to Windows Autopilot for the current Entra tenant. Note that a status object is returned when this cmdlet completes; the actual import process is performed as a background batch process by the Microsoft Intune service.
  
 .PARAMETER serialNumber
 The hardware serial number of the device being added (mandatory).
@@ -597,16 +580,16 @@ The hardware serial number of the device being added (mandatory).
 The hardware hash (4K string) that uniquely identifies the device.
  
 .PARAMETER groupTag
-An optional identifier or tag that can be associated with this device, useful for grouping devices using Azure AD dynamic groups.
+An optional identifier or tag that can be associated with this device, useful for grouping devices using Entra dynamic groups.
  
 .PARAMETER displayName
-The optional name (computer name) to be assigned to the device when it is deployed via Windows Autopilot. This is presently only supported with Azure AD Join scenarios. Note that names should not exceed 15 characters. After setting the name, you need to initiate a sync (Invoke-AutopilotSync) in order to see the name in the Intune object.
+The optional name (computer name) to be assigned to the device when it is deployed via Windows Autopilot. This is presently only supported with Entra Join scenarios. Note that names should not exceed 15 characters. After setting the name, you need to initiate a sync (Invoke-AutopilotSync) in order to see the name in the Intune object.
  
 .PARAMETER assignedUser
 The optional user UPN to be assigned to the device. Note that no validation is done on the UPN specified.
  
 .EXAMPLE
-Add a new device to Windows Autopilot for the current Azure AD tenant.
+Add a new device to Windows Autopilot for the current Entra tenant.
  
 Add-AutopilotImportedDevice -serialNumber $serial -hardwareIdentifier $hash -groupTag "Kiosk" -assignedUser "anna@contoso.com"
 #>
@@ -704,7 +687,7 @@ Remove-AutopilotImportedDevice -id $id
 Gets Windows Autopilot profile details.
  
 .DESCRIPTION
-The Get-AutopilotProfile cmdlet returns either a list of all Windows Autopilot profiles for the current Azure AD tenant, or information for the specific profile specified by its ID.
+The Get-AutopilotProfile cmdlet returns either a list of all Windows Autopilot profiles for the current Entra tenant, or information for the specific profile specified by its ID.
  
 .PARAMETER id
 Optionally, the ID (GUID) of the profile to be retrieved.
@@ -816,7 +799,7 @@ The ConvertTo-AutopilotConfigurationJSON cmdlet converts the specified Windows A
 A Windows Autopilot profile object, typically returned by Get-AutopilotProfile
  
 .EXAMPLE
-Get the JSON representation of each Windows Autopilot profile in the current Azure AD tenant.
+Get the JSON representation of each Windows Autopilot profile in the current Entra tenant.
  
 Get-AutopilotProfile | ConvertTo-AutopilotConfigurationJSON
 #>
@@ -1317,7 +1300,10 @@ Get-AutopilotProfileAssignments -id $id
                     $Group_ID = $response.Value.target.groupId
                     ForEach ($Group in $Group_ID) {
                         Try {
-                            Get-MgGroup | Where-Object { $_.ObjectId -like $Group }
+                            #Get-MgGroup | Where-Object { $_.ObjectId -like $Group }
+                            ##Use Graph Request
+                            $guri = "https://graph.microsoft.com/beta/groups?`$filter=id eq '$Group'"
+                            (Invoke-MgGraphRequest -Uri $guri -Method GET -OutputType PSObject).value
                         }
                         Catch {
                             $Group
@@ -1815,10 +1801,10 @@ The Import-AutopilotCSV cmdlet processes a list of new devices (contained in a C
 The file containing the list of devices to be added.
  
 .PARAMETER groupTag
-An optional identifier or tag that can be associated with this device, useful for grouping devices using Azure AD dynamic groups. This value overrides an Group Tag value specified in the CSV file.
+An optional identifier or tag that can be associated with this device, useful for grouping devices using Entra dynamic groups. This value overrides an Group Tag value specified in the CSV file.
  
 .EXAMPLE
-Add a batch of devices to Windows Autopilot for the current Azure AD tenant.
+Add a batch of devices to Windows Autopilot for the current Entra tenant.
  
 Import-AutopilotCSV -csvFile C:\Devices.csv
 #>
@@ -2072,7 +2058,7 @@ Invoke-MgGraphRequest -Uri $uri -Method Post -Body $json -OutputType PSObject
             Write-Host "Connected to Intune tenant $($graph.TenantId)"
             if ($AddToGroup) {
                 $aadId = Connect-ToGraph -scopes "Group.ReadWrite.All, Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, GroupMember.ReadWrite.All"
-                Write-Host "Connected to Azure AD tenant $($aadId.TenantId)"
+                Write-Host "Connected to Entra tenant $($aadId.TenantId)"
             }
         }
 
@@ -2464,10 +2450,15 @@ End {
                         $aadDevice = (Invoke-MgGraphRequest -Uri $uri -Method GET -OutputType PSObject -SkipHttpErrorCheck).value
                         if ($aadDevice) {
                             Write-Host "Adding device $($aadDevice.displayName) to group $ADGroup"
-                            New-MgGroupMember -GroupId $aadGroup.Id -DirectoryObjectId $aadDevice.id
+                            $egrpid = $aadGroup.Id
+                            $edvcid = $aadDevice.id
+
+                            #New-MgGroupMember -GroupId $aadGroup.Id -DirectoryObjectId $aadDevice.id
+                            ##Use Graph
+                            $eguri = "https://graph.microsoft.com/beta/groups/$egrpid/members/$edvcid"
                         }
                         else {
-                            Write-Error "Unable to find Azure AD device with ID $($aadDevice.deviceId)"
+                            Write-Error "Unable to find Entra device with ID $($aadDevice.deviceId)"
                         }
                     }
                     Write-Host "Added devices to group '$ADGroup' ($($aadGroup.Id))"
@@ -2558,8 +2549,8 @@ End {
 # SIG # Begin signature block
 # MIIoEwYJKoZIhvcNAQcCoIIoBDCCKAACAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCIuqNf7gI42Elm
-# QlMYM4DkoXFUv9uVd7HR0JZhSJ4swaCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBRKXA7nN2Ow41j
+# HTjn5shBkUIQCjlTdeuPrla4IU659aCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2741,33 +2732,33 @@ End {
 # IFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDpMA0GCWCG
 # SAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcN
 # AQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUw
-# LwYJKoZIhvcNAQkEMSIEIL/dIJAcIhQpXRfSIWJhnLJbOlBjtH5J7MFY6FVn0H9l
-# MA0GCSqGSIb3DQEBAQUABIICACFNB3MBsinAt+KNSfe0F950y8UnYNE8MbA2oJQ9
-# 0dSWMK2VnTOCUXnXEuLdIsHPVB8DsO/zAItGd4oMfJatxG+nLwWdlZU8c4jmvT2T
-# Q8XfBNi8BOnnT/5m2MCULUBGDR+BorJIGUplYZAgqVLiyHGqLzN1xkPj994cCCen
-# 2PscStyMZPFjybgsb4891hKQj3fkbAqExaOgWq0jq00Dy4IIiDo5fFUzJF9P3+UD
-# 6ruDwCJRtQ9E3IvODsMgkfTFI98et+uqMvPybHrbp1TUCoB0vXFtQhlf7+0irRQ5
-# /5Ie3tylQeqYwsdsT0bJGhxsORFG2p62lTxnmhPNgkOIqU1cky+j1NE+m6EjYiH8
-# 42aHQJn/DPpptemYdiIAs+IucNAR9zQyTbaODipPTCFAvYqO6deHYX80wrPdy/q3
-# ecLp0MEix5MU2mO0tYxLjHiNgbk6W97+gTbjwx9sv7bApNuqyhwQfuqqF50rJ8g9
-# IB6upOMRSRV0My+79ayr+mjt6dskXDEstWn5rIf9MgRxFgdxaHEKhEBJzmCIyP9I
-# npyKzbQZ0CB2UfdK2ER/s1BsQUhHpTV3QyUpecKKplMdOdezjqL0p/nnRaz8jqG7
-# wIJbUG02CWpSxLB33D7f6Q1z/5WJSbZtlmUOQDjVaIzJ1eV+lZ6LIWqwe4CjjGfV
-# EzkVoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
+# LwYJKoZIhvcNAQkEMSIEIFDsLGa4uh+gJtxc5Onz8JIeVNa/AsSiPtRPUzmHR4Ey
+# MA0GCSqGSIb3DQEBAQUABIICAKQmTGo2Hrk4ewXLPLkIt+0nTcqWEW4zEianIH/M
+# 8fqFWyUwxsSqEEYPFXJ+OmSp8BkaSElPRkLFixLpz0lxxgLiFDK8ux47TxU/rXr0
+# ogUUTflp+mDma4fcxRMr9eHZ8b8386XEVQxpbCPu1gJiJAnMBkBeCxT/aH3VEofQ
+# r83AiVAge7BLwjmV38AZSmuAKp632Cg3HsJ/MKgrVmJc5y+9n/Etmr3PLm68Y369
+# Wss+szzvLSrTsyrVd+1XRvYO2+lyYOB0/DKnOv2n7cmF2AWd1/LjDQZYsCsNy3Ey
+# c0PF/+1jqf0CoUdKfOSTeNDBlWrRqnqPONxpBelWa8BHH93t2/dzIQdknPUYfJgu
+# DxXAsDKSE6sy+G1bqsrmuoTZi7qGXJJsyt4PKywy5DRU9ROL3Ujpd9vCooHze+yQ
+# 6KVI1jgKJMFdrnGC5EFbiGedRh9G1QsKu2Z2sistr4s6ksn2EPrwAnwm4iIdzcg5
+# 0hgm1M6erbFhuNM6AaE6r5/afPTH8BqchwsITsF902rYyLN7IL8Fd/0fw31v+pv5
+# wxx6yKA1Qb9A9t5Fchq5208gH9e47hzCaAxJN6d9cf4gvYR7L+Olu9GTq8V4JWrz
+# xVtaoBJyYgLob0fbsJWhseqqEjbtmdUgj7d2azOcclIiQuvuQIV94Jqp9HN2shsq
+# mtvLoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
 # VVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBU
 # cnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQC65mvFq6
 # f5WHxvnpBOMzBDANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzELBgkqhkiG
-# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDIxODA5MDMxOVowLwYJKoZIhvcNAQkE
-# MSIEICF26sOI1jBWcrXR4JiNBgmOd79O7jQZXop8qnEPgD14MA0GCSqGSIb3DQEB
-# AQUABIICALYnA4+2oIAxIo/GRekDkg+0krLiHkf1LqRwWB5qubf3s0mZ4IRgHawR
-# p5qNXqG9xuYuzGKpsw7lhoTvRu3OizcF++JDeo8Q2H/7x+ivBN/zIw86e7ll/XzF
-# MBDDyJCBkrRCoa7J+paYdBzNvdgNW8piLRIVYZtNBOiKzJkZQ8wacOx0fBcmRuHf
-# N/1/HT3kYFti0Ruf9b7fauK3Vq/G2nVOoNBQGua0ZptUvd369E6fOWpQ5Ywmot/h
-# uZf7zcooWSBqcWzkBNHTeAVMEQEpdje6IYuOvpenU0D4qI84SF1Ic3vZZ1cllQ4a
-# 5buQpM5VL/WmYVBsLsCL2nElfpGYyeYAZI8ROdqpS86mbnEbQfoL3Gd8n/WpZijo
-# kinP07UC/khCtgjRu+5/UPSFoj/ztZh6brEW3hD2LiQ8qSOwwDvu8Pus/Kvqcz9+
-# H6puWSY2IeS6muJaXs2Qnj+ytPa0Wbq+LiLKgz8N4MXLz45TNSP1DdJHSmdTcpMS
-# xAxyFfIhgFyHz5X9Yov/e7lSsQr7VUydhoCpjLfpYDMFUeMcpJx5WDdqL/whkaUk
-# SQYDhocTLIpBDAtAJlkuHmzW//lKGAzTeUphIEpGc/1WmMmvwk/2B9vrUux2Y+Zd
-# qzUO4/JrB8wvpp0kIkpwBOWY1FaiVsde7Po7GlhE6boGuNA2qjRX
+# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDIyMTEyMjAwN1owLwYJKoZIhvcNAQkE
+# MSIEIEM2ge7xjIL4RVnTbhsl9HaNYMvCVPbzNrVy27F/3VQaMA0GCSqGSIb3DQEB
+# AQUABIICAJS+VISwVV1yOgEknEknXWCwVAja9IleUzs/RVFCpV3YR1I7JYQpMaV/
+# q3IL39UI65nV3KzecsYgHot9mraPIJChw0Op9yeB3E0eSr0tZiWTHx3KmLyYN358
+# f9Cq3T3MepEFJ63V4bMnvLCRh/BNJCjHzhtdruaHB/Cc9cRScG3RBFbuW5hrE3RP
+# MgobVjWNuQEIV+dzlzk4zBkPdVqxbBzWhC9XxZ7Q6WBk3Xo/qJzWLcKK4iedcUmE
+# kJirHGRsm+o0S4p7dF7lUZ6y1nHbmxG3VjzDfdSAV+eekfTmHwspXK5DNAKcLbV0
+# mbIhHuu8/Khl+PoFGjFuf9IpfmAoKsltAn6CSrGmI/Lv4GnwJc5dWwgEbvbJFxNT
+# b8NbJqcxaXzvMbtnN6r2Xrg97efyPGgxJBliezZ4B9aD27prnsOeao9i5uIaAwjj
+# AwmPjV/6qAlK/m3iSrBjiok6daJTkmhm6uNPof3D1nGg2lB2R6S47JutTXhvUnox
+# 8pjIBG3/n/+vdRcwL9ojWzM+ie5U1N4+VQNrBaXFMq4xKsHSfHP2Nir07PLxhU+q
+# mSQFZkzYnxqbI39ouF1f1FLf/Q4sq7ZsUaypWxLirIb48hkd3Bf2BwIQTrzFMuRp
+# CljmhVZzox+eX07QUivaC4ti7R1WO3HcYllkwtx7qEU7gtTq+yB/
 # SIG # End signature block
