@@ -2455,11 +2455,11 @@ End {
 
                             #New-MgGroupMember -GroupId $aadGroup.Id -DirectoryObjectId $aadDevice.id
                             ##Use Graph
-                            $eguri = "https://graph.microsoft.com/beta/groups/$egrpid/members/$ref"
+                            $eguri = "https://graph.microsoft.com/beta/groups/$egrpid/members/`$ref"
                             $json = @"
 
                             {
-                                "@odata.id": "https://graph.microsoft.com/v1.0/directoryObjects/$edvcid"
+                                "@odata.id": "https://graph.microsoft.com/beta/directoryObjects/$edvcid"
                               }
 "@
                             Invoke-MgGraphRequest -Method POST -Uri $eguri -Body $json -ContentType "application/json" -OutputType PSObject
@@ -2556,8 +2556,8 @@ End {
 # SIG # Begin signature block
 # MIIoEwYJKoZIhvcNAQcCoIIoBDCCKAACAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCD78WnefmH+fUDy
-# Q3rDDYa1KJ803p69nubqQaE4R8Tmg6CCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBcR3XJRb2VjhS6
+# tetIe+HvuawcVPg5Bxwt7ehY6lsll6CCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2739,33 +2739,33 @@ End {
 # IFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDpMA0GCWCG
 # SAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcN
 # AQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUw
-# LwYJKoZIhvcNAQkEMSIEIM4VIjnKGqNG9wCiyslbDsYnUkG9e+9byWxP2pl7evMW
-# MA0GCSqGSIb3DQEBAQUABIICAK13NG1erZjGrD8jFGSPpjrTmindPWEoL+1V++KN
-# s8F42qvhg7jSMMjGJdkss9A6A3EoqKaQ9e1QELyeys6KMV1dFvI+LZlW4p5m4l4a
-# IfN55XYkKEC5k3TGLa7RtB2+gGK/TUPJLIwhlBkDeHk4/ZYql32vq/BxmtIeUjKG
-# kCpEtO9Coz2iHO40vMH/ebQ7FaUkP4zWJ7mZ/VQn9Pno0dIVVFJ9yTwFEVeo5zzN
-# C+Gb0rXJ3ehIKLHObi8/jreNH53m7qcNom7/lYxk9IMKHb6/0dC+8JgRLtTl4SjP
-# o3aHDbFbL1NydEatpJUw0fYObKVpVCC8a8Q6p8FdFVlXc9dI8U8OAzjpX+9iq3TS
-# iCExYeKiEcQw4syKTPt9LVYVeRGLHU2x9JuTwLWEb/OJdeDcWH0wJwuY3sfINIbK
-# TiPH+74/BuAONQCwZbbz9286MEnGOidVa2eHE+Y6R0C0kD0h33A5FyJF3tXEZoOb
-# HEHiVLX0dRUK85aY2rJGytBZhKD8hw3okRx4cgcxop2m4UdyQ5FwPoWWbxh4uhp9
-# NwOWwXH9v+SPoU/ophXqs+r4hP/dFvQzyuwdDmjoHYyqV1ScitQ225ptSLqSR5w6
-# d+pWkXltc9NWYnysAWH7dOP449Rj/RXkQp0ga9rE4tAZkkbU96ee+/FG7wgsB4ZI
-# CtBooYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
+# LwYJKoZIhvcNAQkEMSIEIJrhgxVIE2dc5wOYeb5KaaDeexAMkdkl/eOKIiXYE4uY
+# MA0GCSqGSIb3DQEBAQUABIICAFhBBzji6obuDXaW5A8ejo92f9PXAoHWfYMPRizD
+# wiOSocDj53TXNCf5cdGv9Jjoz0tK/Zt0dB/W1sJ/ynnt/wG5iMKEZCJRr2bVKavi
+# rRN0Y5jgViA4xqT+Sxc7qX73SeGGtP63Yy3x1ELugZjsi/xvDQ4V4xqwJX4rn1zh
+# LZHX+bXrfSHfwUaiGlGX11aX6OYy+BPA/McjCIHCABQ9vS6X9Tc8RzoNoOmbOtpQ
+# v17Qfgd+vQelL6IqW3DheMun4aufc5v0KV4GaAXFp5teY6ze/Mcrf/MC2n+RYffL
+# rEqzAbeywsNHeI0qYO6vCVm6w+aSDSbxnvTsW4AOVSvUExzQB1tMKn/P9xByi9Mz
+# AVCwjvCI8hIltwM5pfK0K7jspKoEJkdijApMCB5XAWEaXC/gK6yByuwyFm19ChTS
+# NtGdkq4cDsORv1hNDGyxrJOttrLhgdwaVDOA0dAclmJpjOIbsqvL65y9FR0cE5lZ
+# rbm0kAxuQqaaqBuVfF9FWPrUwNKF85g9m2pxwfjzDVfiPAlNrRGUa7e0etUucfQd
+# u4VMzdzgaHqwxIrVT5qjdsTqX4LGv6jO1zuY4XHAsFOqmZbECovOvcidNQRs9GaM
+# 88Hi3TyvJ18XafRC8LKvpGbRyQwdMMdw0/36n5uwkEkTImJ1lMrEBWG1I8CLgEGZ
+# OhSxoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
 # VVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBU
 # cnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQC65mvFq6
 # f5WHxvnpBOMzBDANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzELBgkqhkiG
-# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDIyMTE1NTk0NFowLwYJKoZIhvcNAQkE
-# MSIEIJ8rJMQ7fQzaj8vmomeGZ8R8/AuhDWe9Ecqc+cxqLAzoMA0GCSqGSIb3DQEB
-# AQUABIICAKyBH3GwHOxUPcZ4N3UtpQ0OroGmxnuBrFgiavCvaragcv6/RS+qylhO
-# eMBjZpKdXmnnnCk2h6T4JHnoS9O7xVRYoHQ/tG5wNSSgT1z09j1MTlM9rfaQvGNB
-# 27cNqhhcer7KaJNz8oq54afluO8Z7YhDLPBOtr3MGPZ75g6ojHi61/F4mXvJ7xRR
-# CzbIcbFmZSQRjrmDcl+x6jYqpawE1kOhkT8mXWN6quUvDJtSoMQx0gxtTRow/jnO
-# IYUdg7/wuNEfhVP3h/3uYQLQB5Q59wdADZY3UACTxZY2XhruUMJoUzRyiJy2FcIF
-# 4HSc24XjvjAfwK3zuSPiFjFM646iLC52xXDrpsUD9rwzm9GaxhcHXU/8OKKx4ntL
-# gFWALiuI8yRT4u26eTxm1q4RDMirgEsoOWhLaegQfy+ZVQSQGT5PUBkANRbtwVK4
-# OqgcRJiQ6MQrNTdkPuBy7WT0cMFnCEuIO1VQQ9vq8R/sGeNi+422KRP8pJJD0+NC
-# 6qmXpLyveBHpr7HpCowGW/be2XNTdEV44SrRed9CyK/TlK/GIGCvE/VXRs4G7Klk
-# 4z2CvlQ19pvC3p5jclPu7olP1WpRjJK5mbMdNa3Ro59hlKX3ToCGbLY2Z9ReZLf5
-# 6FGKnwIQLwMwhzNv9AuxXXueDzoSt5d7GeGbPsoKJx2JJ2eAGx2r
+# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDIyMTE4NTI1OVowLwYJKoZIhvcNAQkE
+# MSIEIJqEyeoT0bY+xTM1ADKsvhxTbxJm40cDQkm8DPHsCdk8MA0GCSqGSIb3DQEB
+# AQUABIICAAXoFl0TvquA4GH1mrj/fXdPtlt0pnn4q/73a40rhIOp2EG849a5AEWb
+# DWNihukUHwwqVZdQPSbuWv39pkJHWGLM8QamwG+h0ED7AtTvTH1rm6syNrwrIfdq
+# Z0eqAiK8NP8vqtyULWXURXHHJY//cmdP/40VwqXGN67OL89y+xSdRV7qEGUYUXgN
+# rmCKyPZWdQ8U1YtVH3xfxPHbMWsvQArA8tpfuDTliaQTEvhhSrLAI5mSQLw1fxev
+# VPR7a5IafbFYP0/kBFjuEE6KZvBB23LGjbKYf/IlDIaNZxeWCyTYq8dkIxNA9bkJ
+# LgCrwBPy+dTZqmWhcCnV/mt9DL6/vR72W0mAbivRhYHvA68ZqnjS2/sq1XBn+SM6
+# 9zQBAeHiI5tq9nHCkZ+yKvcgidc+5sbJ21x/3lNvnu82VfAk09wF2r6sx8onidYO
+# +QUgWuJTRCpbnPxvmPDlQv4GwJXpxuLTMu3SaeeEXhCiCEXyrzxEchOf95Mz1FBG
+# kIZfIK/gFNEXlNE5vLlic85B7y1Suq+nOvhQa+LZeTRBcV8s72iIvD0fRsbp21yj
+# w6Ji5rO5AwrM3Yg69idfgN/6FNTxEQkxsa+D2YPhXzR5Uuyx16u52MA+bNURWWPc
+# zC75NEQ2InwE25OGwM6uF3MlxwN9YHH8/DgsAkBy2A4LTOStfJmL
 # SIG # End signature block
