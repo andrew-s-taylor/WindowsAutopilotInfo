@@ -1,7 +1,7 @@
 
 <#PSScriptInfo
 
-.VERSION 5.12
+.VERSION 5.13
 .GUID b45605b6-65aa-45ec-a23c-f5291f9fb519
 .AUTHOR AndrewTaylor, Michael Niehaus & Steven van Beek
 .COMPANYNAME
@@ -15,6 +15,7 @@
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
 .RELEASENOTES
+Version 5.12: Fixed issue with bearer
 Version 5.12: Removed all commandlets and added bearer param
 Version 5.11: Added logic around Device Registration event log
 Version 5.10: Additional logic for DO downloads, MSI product names
@@ -764,6 +765,11 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
             $graph = Connect-ToGraph -Tenant $tenant -AppId $clientid -AppSecret $clientsecret
             write-output "Graph Connection Established"
             }
+            elseif ($bearer) {
+                $graph = Connect-ToGraph -bearer $bearer
+                write-output "Graph Connection Established"
+    
+            }
             else {
             ##Connect to Graph
             
@@ -1087,8 +1093,8 @@ End {
 # SIG # Begin signature block
 # MIIoEwYJKoZIhvcNAQcCoIIoBDCCKAACAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCB96g5zU+YUi5th
-# SK1L2m0YGqkkHiHTXF8yBT//M4OM7KCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDhlebkr9G7KK9e
+# /UEvJeeHgOoaIXeR18f+eT/srl9h7qCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -1270,33 +1276,33 @@ End {
 # IFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDpMA0GCWCG
 # SAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcN
 # AQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUw
-# LwYJKoZIhvcNAQkEMSIEIIEQPcTZcqilEzMPEVER58nD2dxrmS4yGXVZ3sXKLAlL
-# MA0GCSqGSIb3DQEBAQUABIICADc5dd0b3lcjQw/rTInm2Aa9U6lz5eHkVZmHPmNd
-# 0ohysQ2XnBdcY7qs6QIV1aPMFpg+DklcM76v5jAt+TtOQojUsJ8qoIo9UPJkpDhH
-# mVtJxta7BYir5IisgUoybFO8TOzNnw5D4LtPCKVcwC42stHiugW9cE+GaK4m7LMI
-# 73oSnnBznhEl1WRuJMsNW8ojFNsvkUgnEAoGK9TU76uvWurtA1UtCuhgeahHbrmA
-# mSj0Iolt98XGOOf6mjEfdJ8UKyaW0TZldosOAi3FwMKpuUYVgJbhiPA95zp17y5A
-# WEaaUvMtVF/JcHU5a3XYTbvmKbogI5XcwcQdNJLi5aiUYfhnPOvJpOlpJGFgfcWD
-# 7xKAB4wrEQPNdL6y0PnRHWr2Ug6xIN0LczUupWKbPG2+PoOtRW1SqlGqGcAE5GAR
-# lRkMHV2d2UKBlGYX6nh732lbcx33YAISajNvM/kweFOeP1k1esWd7kMG0cIU56++
-# 7HxEa9Osxhai+8PxE1M/zHaKsRV9f+BguWCFueERYObIf4BckAvxOiOuaLOEYZx5
-# vPbuyzg9Q8fOI5wsrPRXS+tmBJJC9Uqywjdi+x5ggpvrb3i/oCmYHuLlWQNa9DWJ
-# wosD61j+9XHb6uZi8FlyRkJPVFk5T8bmScgsLcqtUQQQyif+lQracOGlrgQhuW5t
-# axwToYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
+# LwYJKoZIhvcNAQkEMSIEIODH/kBg13QKc7F+WbdRj4q9ETdaq20TTP/TCK4JFQKL
+# MA0GCSqGSIb3DQEBAQUABIICACNvAhsFd91Ngd85/pqNHqdDYnhx31CYaCVfjssX
+# gzin9hLJNQLJOciJbtjt6cwGGYgKU8GmEbZ3FXBvg2Agf7iMC6ytLYHfwOiP10ii
+# s0IW1nMFZGnro+iGmZ/lhlduZFrfqDrmHtu3vMuTnG6aifByB1+q24LTPtDqiUJs
+# 2/fKGOAwOnhEPqYte6s7TpeeiWb0mNpNZOUle6eLbWUMdaj9JEGQcnrYC5lG9QxK
+# unzpO2wcTHUxP7dYctiwhnt53RFUKQdH1N+8Y4xiO3znZgItM/WvtGuM9lk9naqy
+# 4EHyieJvPZ8WAuKZW7nl6tTGHu5KfXCsIQDg5nVoWyPyq2rBGjj7lIyELbu5HnH+
+# VagdfCn9gjCvXo+80iUang2qodqjoUYHgsK8PL8TFOUpuJk3Nw4xIx4DWpn205up
+# SAHZAU6lRjCXdXYJ0eo0sjSJ5ijsJZk/isgsmPoyF9/dffRwD1ycjDzx9wEUxFVo
+# YUzyXBqFF0epOzcPvFTkauNP1kyDY3CEhghPQ1y9HSSVf+4NfHWOQKhHnAvf68+t
+# 7jyH4D1mVPjnmCuU1CILdJQxIKKfOZALXmqnP/3YlLc2ojnjvxns2WgD5Kjlo2Xw
+# rt+qaxOWikR3s3Gvr6MwFBnv6nqYqUbaKeTmNsJgM6CjDEkmczfWRbbt4WsKXUjZ
+# wfh/oYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
 # VVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBU
 # cnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQC65mvFq6
 # f5WHxvnpBOMzBDANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzELBgkqhkiG
-# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDIyMjExNTMyMlowLwYJKoZIhvcNAQkE
-# MSIEILpFhpxG5aSsMiN6ApM0CAN13oXU7zgftWExgDrlHXYYMA0GCSqGSIb3DQEB
-# AQUABIICAJ/gOaIYgFeIvS6BBQrTLMOeZZ+vkwML7aVvurY7fsQlrhET3Ndq02Jx
-# vNHoQ0WRd72e/vILegRDHm1S19s+4c0BlA9+ajgnpPBLf5EREwVqx/MWedriGiaw
-# 6UlskEcHuKS5DqYnjvv8vg6xBxu2d+r6Y+s9B1n3FjSHTLThScJd+taHE50CK9vS
-# 5T/vnXeX8RGUYcv/XVvnebC/yXr641rLQddqVLfLnDcqzHGPMX5c5mBbcydU8EB5
-# /IHCROnolz1oYrltO20uiXW77Eh4f/Louffdgn+cxdRXMcSf+kxgu8oVV29F+99o
-# WzIcC5njyPdmNCRWZG0pTvWhsEukdBXi1wA2e1pqVht5oia6Vseg5L2GkXgdb9p3
-# Ge+gam0M6KhGj8OtB6vP2reUR5Q7d0cO2sgTDxXd59IoOjiFUOcLK2yeIXNEVja1
-# vKU6xNfkCOnH4plhBLrC0cVtZ1UUCtXaaGXCzKWYb0HF4AgO+XmBj6fr7dEF8jKa
-# UeeXUaczpf8h2IvbUrEi+hjuZVRUGdGfQYxhP6IKkSyJt6IUzB2PKaxg805a0B6p
-# LcfQYMg89C3PudGeP/n5SZlhEmAsQn91KKQAAlqQV/Qc3VR7/TBxigiip6O056kT
-# pjFhVRyjJUprPDMimgDwcVZ2Z4drCJ1MJkivmAhQGoIxozCJVBti
+# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDIyMjE4NDE0NlowLwYJKoZIhvcNAQkE
+# MSIEIPWBP/j4z1mGhmIs8VaG5MphH5SWxQPXpCDhd0IUdTxYMA0GCSqGSIb3DQEB
+# AQUABIICADD9eqUHvJES9ihu2GiyK+mXdl2uD2Pc2tJ7L+0mqkX4payHvlkhotgY
+# ML3EsuLAvI/iCo/yuLuHNvoS+9IpLqypo2QxWwF4pR++S7g1ZLcFCHzV/vDoaTws
+# 21AO+wSBU4jgGPbXY9ugpfVZ0B3apg+xOLwXGCsIPPecUBVQVscOKlcRVsRF5IML
+# omaOcbYqXyL1cHiT5LbCRgWSfuFMdf9AL4/ZwAvxA44v2VVY9dQei/+iAAWe6ssd
+# v6z3JuuPTJHWEc8dlLYvJ9v9LqWtMghyk3LoZwEgC9c1k6h/iECuBEst56SImxVh
+# VAdCvT+hkoO89peGxyxair/MXx8HIsvKH2wdAAs/akMsgb58YJRUv2y0zc6dtoZt
+# 4GQwM8X+R+JRWTsjJF4DGRZXt+tNYNK++nPsfbPc61SwPViUlwjtzInyKY1LBnOu
+# s3Ccn2lgdBGQ+AlyW8iKw/Y3QkxZvfopeDhRTsJ/DQfQCR9YTTD136+O4GzHNoxj
+# XOWVf+aFIjyEQy7f65wxCah8FZ1qMvoaiILHTUXG+aYQ/97W2LoICnRvghExlqQL
+# PcaSeYg8lFo9dHv6rftLLQlABfyysgbmUyJDeLg27MR05IKrzdKII+piQ+gXdk38
+# rEVYokebb4jRp0DBx+4jfYC+tLoy2/e0aEK6gR3wU8FQJWa92qdB
 # SIG # End signature block
