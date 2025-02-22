@@ -1,7 +1,7 @@
 
 <#PSScriptInfo
 
-.VERSION 5.11
+.VERSION 5.12
 .GUID b45605b6-65aa-45ec-a23c-f5291f9fb519
 .AUTHOR AndrewTaylor, Michael Niehaus & Steven van Beek
 .COMPANYNAME
@@ -15,6 +15,7 @@
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
 .RELEASENOTES
+Version 5.12: Removed all commandlets and added bearer param
 Version 5.11: Added logic around Device Registration event log
 Version 5.10: Additional logic for DO downloads, MSI product names
 Version 5.9: Code Signed
@@ -106,7 +107,8 @@ param(
     [Parameter(Mandatory = $False)] [Switch] $ShowPolicies = $false,
     [Parameter(Mandatory = $false)] [string]$Tenant,
     [Parameter(Mandatory = $false)] [string]$AppId,
-    [Parameter(Mandatory = $false)] [string]$AppSecret
+    [Parameter(Mandatory = $false)] [string]$AppSecret,
+    [Parameter(Mandatory = $false)] [string]$bearer
 )
 
 Begin {
@@ -203,6 +205,37 @@ Process {
     # Functions
     #------------------------
 
+    function getallpagination () {
+        <#
+.SYNOPSIS
+This function is used to grab all items from Graph API that are paginated
+.DESCRIPTION
+The function connects to the Graph API Interface and gets all items from the API that are paginated
+.EXAMPLE
+getallpagination -url "https://graph.microsoft.com/v1.0/groups"
+ Returns all items
+.NOTES
+ NAME: getallpagination
+#>
+        [cmdletbinding()]
+    
+        param
+        (
+            $url
+        )
+        $response = (Invoke-MgGraphRequest -Uri $url -Method Get -OutputType PSObject)
+        $alloutput = $response.value
+    
+        $alloutputNextLink = $response."@odata.nextLink"
+    
+        while ($null -ne $alloutputNextLink) {
+            $alloutputResponse = (Invoke-MgGraphRequest -Uri $alloutputNextLink -Method Get -OutputType PSObject)
+            $alloutputNextLink = $alloutputResponse."@odata.nextLink"
+            $alloutput += $alloutputResponse.value
+        }
+    
+        return $alloutput
+    }
     
 Function Connect-ToGraph {
     <#
@@ -234,7 +267,8 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
         [Parameter(Mandatory = $false)] [string]$Tenant,
         [Parameter(Mandatory = $false)] [string]$AppId,
         [Parameter(Mandatory = $false)] [string]$AppSecret,
-        [Parameter(Mandatory = $false)] [string]$scopes
+        [Parameter(Mandatory = $false)] [string]$scopes,
+        [Parameter(Mandatory = $false)] [string]$bearer
     )
 
     Process {
@@ -261,6 +295,19 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
                 write-host "Version 1 Module Detected"
                 Select-MgProfile -Name Beta
                 $accesstokenfinal = $accessToken
+            }
+            $graph = Connect-MgGraph  -AccessToken $accesstokenfinal 
+            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
+        }
+        elseif ($bearer -ne "") {
+            if ($version -eq 2) {
+                write-host "Version 2 module detected"
+                $accesstokenfinal = ConvertTo-SecureString -String $bearer -AsPlainText -Force
+            }
+            else {
+                write-host "Version 1 Module Detected"
+                Select-MgProfile -Name Beta
+                $accesstokenfinal = $bearer
             }
             $graph = Connect-MgGraph  -AccessToken $accesstokenfinal 
             Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
@@ -710,29 +757,6 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
     # If online, make sure we are able to authenticate
     if ($Online) {
 
-        #Check if modules are already imported
-        $deviceManagementModule = Get-Module -ListAvailable -Name Microsoft.Graph.Beta.DeviceManagement
-        $corporateManagementModule = Get-Module -ListAvailable -Name Microsoft.Graph.Beta.Devices.CorporateManagement
-
-        if (-not $deviceManagementModule -or -not $corporateManagementModule) {
-            #Try importing the modules and handle errors if they occur
-            try {
-                $deviceManagementModule = Import-Module Microsoft.Graph.Beta.DeviceManagement -ErrorAction Stop
-                $corporateManagementModule = Import-Module Microsoft.Graph.Beta.Devices.CorporateManagement -ErrorAction Stop
-            }
-            catch {
-                Write-Host "Modules not found. Installing required modules..."
-                #Install the modules if import fails
-                Install-Module Microsoft.Graph.Beta.DeviceManagement -Force -AllowClobber
-                Install-Module Microsoft.Graph.Beta.Devices.CorporateManagement -Force -AllowClobber
-                Write-Host "Modules installed successfully."
-            }
-        }
-
-        #Import the modules again to make them available in the current session
-        Import-Module Microsoft.Graph.Beta.DeviceManagement
-        Import-Module Microsoft.Graph.Beta.Devices.CorporateManagement
-
         Write-Host "Connect to Graph!"
         #Connect to Graph
         if ($AppId -and $AppSecret -and $tenant) {
@@ -749,11 +773,17 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
 
         # Get a list of apps
         Write-Host "Getting list of apps"
-        $script:apps = Get-MgBetaDeviceAppManagementMobileApp -All
+        #$script:apps = Get-MgDeviceAppManagementMobileApp -All
+        $appsuri = "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps"
+        $script:apps = getallpagination -url $appsuri
+        
 
         # Get a list of policies (for certs)
         Write-Host "Getting list of policies"
-        $script:policies = Get-MgBetaDeviceManagementConfigurationPolicy -All
+        $configuri = "https://graph.microsoft.com/beta/deviceManagement/configurationPolicies"
+        #$script:policies = Get-MgBetaDeviceManagementConfigurationPolicy -All
+        $script:policies = getallpagination -url $configuri
+
     }
 
     # Display Autopilot diag details
@@ -1057,8 +1087,8 @@ End {
 # SIG # Begin signature block
 # MIIoEwYJKoZIhvcNAQcCoIIoBDCCKAACAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCLPAYGaYkEt0Bh
-# 9IgzJjTl6m++bwft6E5UD8ySezrrnKCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCB96g5zU+YUi5th
+# SK1L2m0YGqkkHiHTXF8yBT//M4OM7KCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -1240,33 +1270,33 @@ End {
 # IFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDpMA0GCWCG
 # SAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcN
 # AQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUw
-# LwYJKoZIhvcNAQkEMSIEIOpEzgqkColgbhquPKACFn36oeKI+K21OBmt4v60gRVK
-# MA0GCSqGSIb3DQEBAQUABIICAJ5GAuJMRq4O+DaCCz9GJwwU0nXOPjjZtCyMyNRz
-# Wvf/k0hZhldIr7ei1DM4thw5z8BbC1acrHv3LVrhaAx51X3837kbjIbCrCdcquW2
-# xqCNeH8m0ATuSNamK0NKJOk4W/JCvUgxkDeQLQ61HTl/q0+4FHbw7DonHdVF5uw/
-# RRHGmaHmJBjFONJItbFxwFNxvGvYFi/GbAWXmqAn0fKVolXekNPuBZiixnT9f+yV
-# KpK5nyWK6GR3dZau4UfriQ3kczwkMn6+QwNGjSNUdJMgrTeqq8oV+yHT9Rz9SEi0
-# rEF88Xpyktir/E/ahf+0zcSXvZ6jjmMPfmh6CkGp63nAHMaVngYBzowQqoiM3V66
-# tQZQcrCJislGquGOsy9QphjXfCF8z9txrkCsZm4xfUmvSRvS8VCvoWHLv9QzcXD3
-# /LtD9Td3Do9v+iNhrcCLoJjjIBYDS8KC7koLOU8nmtZNXlWej57gL4iYyGmMAmas
-# 1/d7NMnZDAUVuK/RePZMarAKCMej0sn8KNO6vlswPPhFgh02rYjq4XaW/ZkeoNJQ
-# Qaiop0+mwYe8sAXxHDOkqwTQB0idykLJqqV97+a9P0mZMUL8Pt+wjNCWHlOLYiwo
-# 2+8I5nngpACUPnLTYtjcm7gwCETzba0senDw1LI1nQxOWhR4a/Y+GwACvibRIUSx
-# eD/MoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
+# LwYJKoZIhvcNAQkEMSIEIIEQPcTZcqilEzMPEVER58nD2dxrmS4yGXVZ3sXKLAlL
+# MA0GCSqGSIb3DQEBAQUABIICADc5dd0b3lcjQw/rTInm2Aa9U6lz5eHkVZmHPmNd
+# 0ohysQ2XnBdcY7qs6QIV1aPMFpg+DklcM76v5jAt+TtOQojUsJ8qoIo9UPJkpDhH
+# mVtJxta7BYir5IisgUoybFO8TOzNnw5D4LtPCKVcwC42stHiugW9cE+GaK4m7LMI
+# 73oSnnBznhEl1WRuJMsNW8ojFNsvkUgnEAoGK9TU76uvWurtA1UtCuhgeahHbrmA
+# mSj0Iolt98XGOOf6mjEfdJ8UKyaW0TZldosOAi3FwMKpuUYVgJbhiPA95zp17y5A
+# WEaaUvMtVF/JcHU5a3XYTbvmKbogI5XcwcQdNJLi5aiUYfhnPOvJpOlpJGFgfcWD
+# 7xKAB4wrEQPNdL6y0PnRHWr2Ug6xIN0LczUupWKbPG2+PoOtRW1SqlGqGcAE5GAR
+# lRkMHV2d2UKBlGYX6nh732lbcx33YAISajNvM/kweFOeP1k1esWd7kMG0cIU56++
+# 7HxEa9Osxhai+8PxE1M/zHaKsRV9f+BguWCFueERYObIf4BckAvxOiOuaLOEYZx5
+# vPbuyzg9Q8fOI5wsrPRXS+tmBJJC9Uqywjdi+x5ggpvrb3i/oCmYHuLlWQNa9DWJ
+# wosD61j+9XHb6uZi8FlyRkJPVFk5T8bmScgsLcqtUQQQyif+lQracOGlrgQhuW5t
+# axwToYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
 # VVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBU
 # cnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQC65mvFq6
 # f5WHxvnpBOMzBDANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzELBgkqhkiG
-# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI0MTIzMTEzMzM0M1owLwYJKoZIhvcNAQkE
-# MSIEIMggxR3PbrdtGru17/wdZufhJqENRfk8v4j+Ug6Hn6PAMA0GCSqGSIb3DQEB
-# AQUABIICAEZNgB5KJ/QptwcLY/uYdsHX4cYzDXYpQL8gRD4XLheWZ4Kx0bqBP909
-# drrytxPD53z6M2T8u6uY6G1mOGVCeS30ZsryaJJV/bwliuUq8ezTH1v9MvXzC/Ip
-# m6+sZsZ6bX3iopwiurIcRIXSym9TaUXafqLT/tqHgCU5lV1epgdMF2uZz26eFG4P
-# kWh+0XsMuSDsfGwhzENHRu4XtzlDo8lbiTjVgeccPxTbMzwKdInK0qSEW46G6Bv5
-# rwKoyepNIeIZ25NnD4ff1AsGvHwAopPfTterWTbpYV1PfEzx34KYlBwPLRia8q4S
-# h/XHxic/zgIRNqYpkOLvHfr5cDOfNRPW89QeErQW4ap7TJOOWB1PGxuQZxockWeV
-# fpfN3hbYnrxSQQQ7G1ozloL6nEjBkBb/MGE1+h/VxqwH16TQqRbz7SneON5dDS+w
-# B04x8+F669CRsnPpRTLA50dfA+ADFn2hW3GAlkNDDBnXRY8bVzXABH0F/+Gt1vMe
-# j4DE8sRtS1ieKyRE1tVe7RL0OqZk9sBnBbc5DyAh3P1Blnvo0YycYOsqfDgXKf9O
-# BDOtmumNjS6esY/Af1mks7eCHtQxto3b3DLQOw6dXF1S2z8k5ChQFq6Kifiq9D9f
-# DPFiMp5SkDVOYn38k1fN4y6cLCc75usOiEgeYh4IhqVjwXV1S9au
+# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDIyMjExNTMyMlowLwYJKoZIhvcNAQkE
+# MSIEILpFhpxG5aSsMiN6ApM0CAN13oXU7zgftWExgDrlHXYYMA0GCSqGSIb3DQEB
+# AQUABIICAJ/gOaIYgFeIvS6BBQrTLMOeZZ+vkwML7aVvurY7fsQlrhET3Ndq02Jx
+# vNHoQ0WRd72e/vILegRDHm1S19s+4c0BlA9+ajgnpPBLf5EREwVqx/MWedriGiaw
+# 6UlskEcHuKS5DqYnjvv8vg6xBxu2d+r6Y+s9B1n3FjSHTLThScJd+taHE50CK9vS
+# 5T/vnXeX8RGUYcv/XVvnebC/yXr641rLQddqVLfLnDcqzHGPMX5c5mBbcydU8EB5
+# /IHCROnolz1oYrltO20uiXW77Eh4f/Louffdgn+cxdRXMcSf+kxgu8oVV29F+99o
+# WzIcC5njyPdmNCRWZG0pTvWhsEukdBXi1wA2e1pqVht5oia6Vseg5L2GkXgdb9p3
+# Ge+gam0M6KhGj8OtB6vP2reUR5Q7d0cO2sgTDxXd59IoOjiFUOcLK2yeIXNEVja1
+# vKU6xNfkCOnH4plhBLrC0cVtZ1UUCtXaaGXCzKWYb0HF4AgO+XmBj6fr7dEF8jKa
+# UeeXUaczpf8h2IvbUrEi+hjuZVRUGdGfQYxhP6IKkSyJt6IUzB2PKaxg805a0B6p
+# LcfQYMg89C3PudGeP/n5SZlhEmAsQn91KKQAAlqQV/Qc3VR7/TBxigiip6O056kT
+# pjFhVRyjJUprPDMimgDwcVZ2Z4drCJ1MJkivmAhQGoIxozCJVBti
 # SIG # End signature block
