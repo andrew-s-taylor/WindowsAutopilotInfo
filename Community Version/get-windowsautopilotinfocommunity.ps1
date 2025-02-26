@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 5.0.4
+.VERSION 5.0.5
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -37,6 +37,7 @@ v5.0.0 - Added support for device identifiers
 v5.0.2 - Removed dots and commas from make and model
 v5.0.3 - Removed Group and GroupMember scopes if add to group not selected
 v5.0.4 - Switched from Graph Groups module to raw requests
+v5.0.5 - Groups fix
 #>
 
 <#
@@ -109,7 +110,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        5.0.4
+Version:        5.0.5
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -2443,7 +2444,9 @@ End {
         # Add the device to the specified AAD group
         if ($AddToGroup) {
             foreach ($ADGroup in $AddToGroup) {
-                $aadGroup = Get-MgGroup -Filter "DisplayName eq '$ADGroup'"
+                #$aadGroup = Get-MgGroup -Filter "DisplayName eq '$ADGroup'"
+                $guri = "https://graph.microsoft.com/beta/groups?`$filter=id eq '$ADGroup'"
+                $aadGroup = (Invoke-MgGraphRequest -Uri $guri -Method GET -OutputType PSObject).value
                 if ($aadGroup) {
                     $autopilotDevices | ForEach-Object {
                         $uri = "https://graph.microsoft.com/beta/devices?`$filter=deviceId eq '" + $_.azureActiveDirectoryDeviceId + "'"
@@ -2556,8 +2559,8 @@ End {
 # SIG # Begin signature block
 # MIIoEwYJKoZIhvcNAQcCoIIoBDCCKAACAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBcR3XJRb2VjhS6
-# tetIe+HvuawcVPg5Bxwt7ehY6lsll6CCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCADjnkmxnmDQGI8
+# xlpWLftx7s9j8GUAqS27Rs0Z3p6EGKCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2739,33 +2742,33 @@ End {
 # IFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDpMA0GCWCG
 # SAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcN
 # AQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUw
-# LwYJKoZIhvcNAQkEMSIEIJrhgxVIE2dc5wOYeb5KaaDeexAMkdkl/eOKIiXYE4uY
-# MA0GCSqGSIb3DQEBAQUABIICAFhBBzji6obuDXaW5A8ejo92f9PXAoHWfYMPRizD
-# wiOSocDj53TXNCf5cdGv9Jjoz0tK/Zt0dB/W1sJ/ynnt/wG5iMKEZCJRr2bVKavi
-# rRN0Y5jgViA4xqT+Sxc7qX73SeGGtP63Yy3x1ELugZjsi/xvDQ4V4xqwJX4rn1zh
-# LZHX+bXrfSHfwUaiGlGX11aX6OYy+BPA/McjCIHCABQ9vS6X9Tc8RzoNoOmbOtpQ
-# v17Qfgd+vQelL6IqW3DheMun4aufc5v0KV4GaAXFp5teY6ze/Mcrf/MC2n+RYffL
-# rEqzAbeywsNHeI0qYO6vCVm6w+aSDSbxnvTsW4AOVSvUExzQB1tMKn/P9xByi9Mz
-# AVCwjvCI8hIltwM5pfK0K7jspKoEJkdijApMCB5XAWEaXC/gK6yByuwyFm19ChTS
-# NtGdkq4cDsORv1hNDGyxrJOttrLhgdwaVDOA0dAclmJpjOIbsqvL65y9FR0cE5lZ
-# rbm0kAxuQqaaqBuVfF9FWPrUwNKF85g9m2pxwfjzDVfiPAlNrRGUa7e0etUucfQd
-# u4VMzdzgaHqwxIrVT5qjdsTqX4LGv6jO1zuY4XHAsFOqmZbECovOvcidNQRs9GaM
-# 88Hi3TyvJ18XafRC8LKvpGbRyQwdMMdw0/36n5uwkEkTImJ1lMrEBWG1I8CLgEGZ
-# OhSxoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
+# LwYJKoZIhvcNAQkEMSIEIA45+fKK7v7PINnZt6+l7QKzePTDhniWdEFo0LuoGxyj
+# MA0GCSqGSIb3DQEBAQUABIICAE3aEbV8hnssyg5D8nwd3bwh3XZDls60kZPXdXJ2
+# CHkgwNVp33vRYiITP5MTS+33zv3y5FT/29RlnkJ+0Y7yy0S026ZDB9TfltV5sHnD
+# FGXUwOYMGhISjTtiYct00I3OplLncJSE5TGVlw0dXQIrcjf3L4hG2cQJ+utSgNed
+# Ne22EwJjCklWj8wyiQ27e6NX0bXTdvDRxoKbNKAo4t4q5u2rTBQ+lcI1WHVwkzDH
+# K60CukG1/cGWLN1O8oMwdPiC/0qnNEBAz8mP9PZDNQyVhhDhPNmOBY4p3rncMk3X
+# m5B6bEDtQLfFBv3REmAu2EayX2/PEYrUzEPlBxqD8WikaIWCiJ2ncX5MJfTHj+em
+# Wir8bPK8FlWnPB0BkVAUNMab9q4fQ+CEEHH2cTQwqkDTWxbRfMshp243J53gcgNd
+# mOqA5KKBYFbher/QQdz1015Q+hiMGNeoXvb8Mu0xO3ILlEX+LWOrPv0PZb701QWa
+# t0lkE0NL6mS3bRaVd/uy+xUkmDKCsbf+LajJbIXgDFHYN6Of/lc11+3/t1qxaXnv
+# ITq29uPi1GLgYe4aDeFgove2X1d4dQ+gT+Y39SPPo17ZJ1Fl88EXJp2WASg2Klf9
+# M5eXMUlmONMq09sx5Y9rcF3hKCoukJe0dgfnc5L/LQgx0++/7Nq6iyxJaKJtYs7N
+# wJAvoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
 # VVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBU
 # cnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQC65mvFq6
 # f5WHxvnpBOMzBDANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzELBgkqhkiG
-# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDIyMTE4NTI1OVowLwYJKoZIhvcNAQkE
-# MSIEIJqEyeoT0bY+xTM1ADKsvhxTbxJm40cDQkm8DPHsCdk8MA0GCSqGSIb3DQEB
-# AQUABIICAAXoFl0TvquA4GH1mrj/fXdPtlt0pnn4q/73a40rhIOp2EG849a5AEWb
-# DWNihukUHwwqVZdQPSbuWv39pkJHWGLM8QamwG+h0ED7AtTvTH1rm6syNrwrIfdq
-# Z0eqAiK8NP8vqtyULWXURXHHJY//cmdP/40VwqXGN67OL89y+xSdRV7qEGUYUXgN
-# rmCKyPZWdQ8U1YtVH3xfxPHbMWsvQArA8tpfuDTliaQTEvhhSrLAI5mSQLw1fxev
-# VPR7a5IafbFYP0/kBFjuEE6KZvBB23LGjbKYf/IlDIaNZxeWCyTYq8dkIxNA9bkJ
-# LgCrwBPy+dTZqmWhcCnV/mt9DL6/vR72W0mAbivRhYHvA68ZqnjS2/sq1XBn+SM6
-# 9zQBAeHiI5tq9nHCkZ+yKvcgidc+5sbJ21x/3lNvnu82VfAk09wF2r6sx8onidYO
-# +QUgWuJTRCpbnPxvmPDlQv4GwJXpxuLTMu3SaeeEXhCiCEXyrzxEchOf95Mz1FBG
-# kIZfIK/gFNEXlNE5vLlic85B7y1Suq+nOvhQa+LZeTRBcV8s72iIvD0fRsbp21yj
-# w6Ji5rO5AwrM3Yg69idfgN/6FNTxEQkxsa+D2YPhXzR5Uuyx16u52MA+bNURWWPc
-# zC75NEQ2InwE25OGwM6uF3MlxwN9YHH8/DgsAkBy2A4LTOStfJmL
+# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDIyNjE1NDIxNVowLwYJKoZIhvcNAQkE
+# MSIEIArQgN4mRIvPvd5GzKZ936ykFOgozRkR4y0Ef81TcodbMA0GCSqGSIb3DQEB
+# AQUABIICAErflqrDetbidSoXt7JlFoGVOZsW89koXgyltCfK+1z3RGRAVNC/YoMn
+# woZnbMQmaVasakuSu+IquSBSYR2EE/HLoxZ5zTy6iG5GvrFW+/9ObXTvl0I/zr16
+# 1J1D1hAjeWeM1KoAH/aJoy0Rs5VM/qL24Fg9wDH6XqDH0q1EaNH1wQRp7J3rBlAy
+# kUg79RDZHA4eCoi9b6PvqIA8D1uy/ocAGMH4vPD5qtLQ3PdGJtLaFnY1aqYX8fol
+# 9VKKzcg/muAX9DYXNw4HIzvzhmU9SiLmFeVUcBGvsK0sITqcC+d6MUT4/RFUp1TU
+# xg+ZUZCmIAdRwJUVFhW04mIcQ9MetvHI2TsdZSFUnp0ttMCtzy7+/jPGlNUierOx
+# QlkIOmFlOUmZ0mKbbcfDe2HOfNDKnLqf+tE5/M7cuZ31eUs7IqD1oKRkr/k1N0DY
+# QJhgRNc+eZffwM+hpYb9WzCVdZ1N1gKzEGKJwZVRn7B7j4hyVr5GVE6XrG83uamu
+# lQ2tNrmTnxfaJYrlzYUohbEl0KfR8YmAqXOOuAr7vHKISiImKGy5crQdZungjSeG
+# PzJ+vKhDal4t+eAG3Mw5HPxLbKfnim1tbb4okwiFOpG29xJqZmjHaYHwoR2PXM4C
+# yB8yXNPn2O4pTeulNgl8GK1BIhWZWZzwghBYgHk+qDBkDUBWLs9q
 # SIG # End signature block
