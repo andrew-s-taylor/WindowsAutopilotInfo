@@ -1,7 +1,7 @@
 
 <#PSScriptInfo
 
-.VERSION 5.13
+.VERSION 5.14
 .GUID b45605b6-65aa-45ec-a23c-f5291f9fb519
 .AUTHOR AndrewTaylor, Michael Niehaus & Steven van Beek
 .COMPANYNAME
@@ -15,7 +15,8 @@
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
 .RELEASENOTES
-Version 5.12: Fixed issue with bearer
+Version 5.14: Added auto-install of Graph modules
+Version 5.13: Fixed issue with bearer
 Version 5.12: Removed all commandlets and added bearer param
 Version 5.11: Added logic around Device Registration event log
 Version 5.10: Additional logic for DO downloads, MSI product names
@@ -758,6 +759,20 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
     # If online, make sure we are able to authenticate
     if ($Online) {
 
+        ##Check if we need to install the module
+        #Install MS Graph if not available
+if (Get-Module -ListAvailable -Name Microsoft.Graph.Authentication) {
+    Write-Host "Microsoft Graph Already Installed"
+} 
+else {
+    try {
+        Install-Module -Name Microsoft.Graph.Authentication -Repository PSGallery -Force 
+    }
+    catch [Exception] {
+        $_.message 
+    }
+}
+
         Write-Host "Connect to Graph!"
         #Connect to Graph
         if ($AppId -and $AppSecret -and $tenant) {
@@ -1093,8 +1108,8 @@ End {
 # SIG # Begin signature block
 # MIIoEwYJKoZIhvcNAQcCoIIoBDCCKAACAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDhlebkr9G7KK9e
-# /UEvJeeHgOoaIXeR18f+eT/srl9h7qCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCB/bqWswheHbDMx
+# GaYkZft+Of238GoR5CSlkiAIFqmglKCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -1276,33 +1291,33 @@ End {
 # IFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDpMA0GCWCG
 # SAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcN
 # AQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUw
-# LwYJKoZIhvcNAQkEMSIEIODH/kBg13QKc7F+WbdRj4q9ETdaq20TTP/TCK4JFQKL
-# MA0GCSqGSIb3DQEBAQUABIICACNvAhsFd91Ngd85/pqNHqdDYnhx31CYaCVfjssX
-# gzin9hLJNQLJOciJbtjt6cwGGYgKU8GmEbZ3FXBvg2Agf7iMC6ytLYHfwOiP10ii
-# s0IW1nMFZGnro+iGmZ/lhlduZFrfqDrmHtu3vMuTnG6aifByB1+q24LTPtDqiUJs
-# 2/fKGOAwOnhEPqYte6s7TpeeiWb0mNpNZOUle6eLbWUMdaj9JEGQcnrYC5lG9QxK
-# unzpO2wcTHUxP7dYctiwhnt53RFUKQdH1N+8Y4xiO3znZgItM/WvtGuM9lk9naqy
-# 4EHyieJvPZ8WAuKZW7nl6tTGHu5KfXCsIQDg5nVoWyPyq2rBGjj7lIyELbu5HnH+
-# VagdfCn9gjCvXo+80iUang2qodqjoUYHgsK8PL8TFOUpuJk3Nw4xIx4DWpn205up
-# SAHZAU6lRjCXdXYJ0eo0sjSJ5ijsJZk/isgsmPoyF9/dffRwD1ycjDzx9wEUxFVo
-# YUzyXBqFF0epOzcPvFTkauNP1kyDY3CEhghPQ1y9HSSVf+4NfHWOQKhHnAvf68+t
-# 7jyH4D1mVPjnmCuU1CILdJQxIKKfOZALXmqnP/3YlLc2ojnjvxns2WgD5Kjlo2Xw
-# rt+qaxOWikR3s3Gvr6MwFBnv6nqYqUbaKeTmNsJgM6CjDEkmczfWRbbt4WsKXUjZ
-# wfh/oYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
+# LwYJKoZIhvcNAQkEMSIEIMELen1cR7RlNuIYEVP7T5dM0TCZbQyogOb2f0EZ8b4w
+# MA0GCSqGSIb3DQEBAQUABIICAF/XWIIYN7czvx/Rt/0nLX1P1wU3QNfMk5n94VHa
+# rhfTXOOYXKvhgp4fnaMyCPYlF5oE8QigJkLk6SMh6/vbMUmXq1wwytPoc62f+NLA
+# nbsKQqWhydATwBJLsIUqDLfPBsuWHZA7OJEDzIfDssuvf45lbIPrmfEWa7xv6d7s
+# blPQQODrIvmAQSWpgvxltU8MfC8VeMDDsWKcV19vifC8W7a5jZP/hFXcl4E1v25B
+# 4ko+kNnHyabvOPLO3LmCoDv32BsaZzxLrfvjs5ZQ9UZ2Sv9NX9+T35rPzYOmXtQJ
+# K9C70ARIStIxECi932K2QuuWbNiJ9dXWmyYquaFy19xL26GpSoJ+HUAwVY32iUSu
+# zOi6cZvlx6D1jVu8vvLTDqwEyjqC8kdNuKpmw+zVlNGHDdwLpCfoHiijMQLOONww
+# VwZfDbK2bBPWSYcU/a09rjPb7RRYuGNgqTH3ME5rXparWuaXrOsmMGWEy/WIL38X
+# sFgsQWZuf9kFRyPfYhWCodVwPKP8KMLjBQALcwMsxUGYnDB+XkjMjZzLxfrh0KNE
+# QsrJD2WKIesoNd4tNKi8oEzL21ICnHpAzMmpa1ionrD7Q6MnAtH2/TMt0UL9yX04
+# KYbNfWKxgw4l9KjRAo+3z0M/rB6mC9Np68F13Xz7dke22d5VJ+XAHBJn1H0G9V2U
+# QDn5oYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
 # VVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBU
 # cnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQC65mvFq6
 # f5WHxvnpBOMzBDANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzELBgkqhkiG
-# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDIyMjE4NDE0NlowLwYJKoZIhvcNAQkE
-# MSIEIPWBP/j4z1mGhmIs8VaG5MphH5SWxQPXpCDhd0IUdTxYMA0GCSqGSIb3DQEB
-# AQUABIICADD9eqUHvJES9ihu2GiyK+mXdl2uD2Pc2tJ7L+0mqkX4payHvlkhotgY
-# ML3EsuLAvI/iCo/yuLuHNvoS+9IpLqypo2QxWwF4pR++S7g1ZLcFCHzV/vDoaTws
-# 21AO+wSBU4jgGPbXY9ugpfVZ0B3apg+xOLwXGCsIPPecUBVQVscOKlcRVsRF5IML
-# omaOcbYqXyL1cHiT5LbCRgWSfuFMdf9AL4/ZwAvxA44v2VVY9dQei/+iAAWe6ssd
-# v6z3JuuPTJHWEc8dlLYvJ9v9LqWtMghyk3LoZwEgC9c1k6h/iECuBEst56SImxVh
-# VAdCvT+hkoO89peGxyxair/MXx8HIsvKH2wdAAs/akMsgb58YJRUv2y0zc6dtoZt
-# 4GQwM8X+R+JRWTsjJF4DGRZXt+tNYNK++nPsfbPc61SwPViUlwjtzInyKY1LBnOu
-# s3Ccn2lgdBGQ+AlyW8iKw/Y3QkxZvfopeDhRTsJ/DQfQCR9YTTD136+O4GzHNoxj
-# XOWVf+aFIjyEQy7f65wxCah8FZ1qMvoaiILHTUXG+aYQ/97W2LoICnRvghExlqQL
-# PcaSeYg8lFo9dHv6rftLLQlABfyysgbmUyJDeLg27MR05IKrzdKII+piQ+gXdk38
-# rEVYokebb4jRp0DBx+4jfYC+tLoy2/e0aEK6gR3wU8FQJWa92qdB
+# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDQxMTE1MjUxMFowLwYJKoZIhvcNAQkE
+# MSIEILO45kAxhXRXnxIlBqiCAx1BG8P9BJB0f9l1L7jkzc+fMA0GCSqGSIb3DQEB
+# AQUABIICAEwaQ44sdEoDlDMLYQ9XQkFhNtVqkO3AbBcAOxeOFXYpgww1rhYxgkA7
+# ewVZkcQ17lvA7wSPSiE3R7nQidbNNBNYoiewmhzbzjxoJuAmfG2Z62YH6RoeVa9y
+# Mb0m7C8aVtjZsk0Q1f5gyhTEhWX0xvuLlyrTb69imUUfGdkGhfn3ohPK2jqhGsFL
+# 9R+CTGu3iJzsjDB7QNbE+7z0nt5pkf0xQTbHnZwcpF8r+Lou2gwFn4yl4D8ydA2k
+# zkhC+NfMA2DM5eks8QHs910GEG2dzs+W3hr4MV/4HlVzFtWFepNrCWO2gkgDWAef
+# bjp21VbkbUCQivtqALzsagr0f2DfY9GcqRF4/hwGfkSUe4jdTfmq1sUcaXTl9Hd/
+# GlukXxVHQ33zgUJjlGKESZMwRWwJi5xq75GBCDVFOsxjkcBlXnqZc8XzY1yfeKGl
+# 1z+r4EUk0uFM/KhX2liLYujIpvsTKNqw5b/V61mjZMQU4MGi4BRA5CZqQ5BU3pGR
+# sU1O5Y8dcus9a0YadcpeoSY7F6amM8xcM8/0B9pnNyeXym8qrlZrCssS7FNHFlKZ
+# RyUazI5QGqY1lcnEYDdOdayQmlidYsPijsEPKfWMtvFWBXP0UkKALUwtQR/xNhVo
+# E8hiFy0XmXzBMQGUzBxPJAK2OAySvFxIVegK+QPHxJyM38dF3gUo
 # SIG # End signature block
