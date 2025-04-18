@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 5.0.5
+.VERSION 5.0.6
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -38,6 +38,7 @@ v5.0.2 - Removed dots and commas from make and model
 v5.0.3 - Removed Group and GroupMember scopes if add to group not selected
 v5.0.4 - Switched from Graph Groups module to raw requests
 v5.0.5 - Groups fix
+v5.0.6 - Don't display Entra ID token; don't prompt if -Force is specified
 #>
 
 <#
@@ -110,7 +111,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        5.0.5
+Version:        5.0.6
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -2052,7 +2053,7 @@ Invoke-MgGraphRequest -Uri $uri -Method Post -Body $json -OutputType PSObject
 
         # Connect
         if ($AppId -ne "") {
-            Connect-ToGraph -AppId $AppId -AppSecret $AppSecret -Tenant $TenantId
+            Connect-ToGraph -AppId $AppId -AppSecret $AppSecret -Tenant $TenantId | Out-Null
         }
         else {
             $graph = Connect-ToGraph -scopes "Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All"
@@ -2101,7 +2102,7 @@ Process {
         else {
         # Get the hash (if available)
         $devDetail = (Get-CimInstance -CimSession $session -Namespace root/cimv2/mdm/dmmap -Class MDM_DevDetail_Ext01 -Filter "InstanceID='Ext' AND ParentID='./DevDetail'")
-        if ($devDetail -and (-not $Force)) {
+        if ($devDetail) {
             $hash = $devDetail.DeviceHardwareData
         }
         else {
@@ -2110,7 +2111,7 @@ Process {
         }
     
         # If the hash isn't available, get the make and model
-        if ($bad -or $Force) {
+        if ($bad) {
             $cs = Get-CimInstance -CimSession $session -Class Win32_ComputerSystem
             $make = $cs.Manufacturer.Trim()
             $model = $cs.Model.Trim()
@@ -2319,7 +2320,11 @@ End {
                     }
                     else {
                         ##Prompt to delete or update
-                        $choice = Read-Host "Do you want to delete or update? (delete/update)"
+                        if ($Force) {
+                            $choice = "update"
+                        } else {
+                            $choice = Read-Host "Do you want to delete or update? (delete/update)"
+                        }
 
                         if ($choice -eq "delete") {
                             # Perform delete action
