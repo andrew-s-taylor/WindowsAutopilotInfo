@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 5.0.6
+.VERSION 5.0.7
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -39,6 +39,7 @@ v5.0.3 - Removed Group and GroupMember scopes if add to group not selected
 v5.0.4 - Switched from Graph Groups module to raw requests
 v5.0.5 - Groups fix
 v5.0.6 - Don't display Entra ID token; don't prompt if -Force is specified
+v5.0.7 - Re-written update/delete to stop grabbing all devices
 #>
 
 <#
@@ -111,7 +112,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        5.0.6
+Version:        5.0.7
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -2273,9 +2274,9 @@ End {
             Write-Host "Loading all objects. This can take a while on large tenants"
             # $aadDevices = getallpagination -url "https://graph.microsoft.com/beta/devices"
 
-            $devices = getdevicesandusers
+            #$devices = getdevicesandusers
 
-            $intunedevices = $devices | Where-Object { $_.operatingSystem -eq "Windows" }
+            #$intunedevices = $devices | Where-Object { $_.operatingSystem -eq "Windows" }
 
             # Update existing devices by Thiago Beier https://twitter.com/thiagobeier https://www.linkedin.com/in/tbeier/
         
@@ -2295,9 +2296,10 @@ End {
                         Write-Host "Device deleted from AutoPilot"
 
                     
-                        $intunedevicetoremove = $intunedevices | Where-Object { $_.SerialNumber -eq "$($serial)" }       
-                        $intunedeviceid = $intunedevicetoremove.DeviceID
-                        $aaddeviceid = $intunedevicetoremove.AADID    
+                        #$intunedevicetoremove = $intunedevices | Where-Object { $_.SerialNumber -eq "$($serial)" }   
+                        $intunedevicetoremove = (Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices?`$filter=startsWith(serialNumber, '$serial')" -Method GET -OutputType PSObject).value
+                        $intunedeviceid = $intunedevicetoremove.ID
+                        $aaddeviceid = $intunedevicetoremove.AzureADDeviceID    
                         $aaduri = "https://graph.microsoft.com/beta/devices?`$filter=deviceID eq '$aaddeviceid'"
                         $aadobjectid = ((Invoke-MgGraphRequest -Uri $aaduri -Method GET -OutputType PSObject).value).id
                         Write-Host "Deleting device from Intune"
@@ -2334,9 +2336,10 @@ End {
                             Write-Host "Device deleted from AutoPilot"
 
     
-                            $intunedevicetoremove = $intunedevices | Where-Object { $_.SerialNumber -eq "$($serial)" }       
-                            $intunedeviceid = $intunedevicetoremove.DeviceID
-                            $aaddeviceid = $intunedevicetoremove.AADID    
+                            #$intunedevicetoremove = $intunedevices | Where-Object { $_.SerialNumber -eq "$($serial)" } 
+                            $intunedevicetoremove = (Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices?`$filter=startsWith(serialNumber, '$serial')" -Method GET -OutputType PSObject).value      
+                            $intunedeviceid = $intunedevicetoremove.ID
+                            $aaddeviceid = $intunedevicetoremove.AzureADDeviceID    
                             $aaduri = "https://graph.microsoft.com/beta/devices?`$filter=deviceID eq '$aaddeviceid'"
                             $aadobjectid = ((Invoke-MgGraphRequest -Uri $aaduri -Method GET -OutputType PSObject).value).id
                             Write-Host "Deleting device from Intune"
@@ -2564,8 +2567,8 @@ End {
 # SIG # Begin signature block
 # MIIoEwYJKoZIhvcNAQcCoIIoBDCCKAACAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCYXmB6018GOW2W
-# LKGiT5qf4OgrVVL1gfEYlqcJNU/CBKCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDrQxu/Q7Gmn1AZ
+# EfFvcf1bSwoDylDYaF7DOb5ar9HZeqCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2747,33 +2750,33 @@ End {
 # IFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDpMA0GCWCG
 # SAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcN
 # AQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUw
-# LwYJKoZIhvcNAQkEMSIEIMteaEW8RRrfdyTpFyanQE278I8aNuRIQ3YH+XwbzOt3
-# MA0GCSqGSIb3DQEBAQUABIICACKh+M7cVRdElSo5nMGUT/9uFnhf2G/gxsDs7XQU
-# Cm4s/I5yZOfcZcqUyDOJ6GesArgl8KAcnaPQeyDrHQuJUt37vg0v7Guv3Lmi95Dm
-# bPQpoWqrgU9xWjsL7OwZ0CuVgQsFMZAP8IrMQXBaBm4BK+diqK900ItW4QTXHmze
-# nYrX3G1ksKwdvMNVSUSykJbf62ntLsTmalolAaPR1vohQsYwT/JbOFTmhL3N7IXG
-# 2c0+sQEA34KsZiRmT4U3J4whhFkjMTFh+PH5iwMgZ+bkRElf+SOgUaIlWhkzKoEy
-# JPugop6B7JZS1LiFgjGaSU2bxplhN+hlteq0g9WQHXRClo7tARBqp2ZY4dD0hHZ5
-# PGGz2RAIJUpXQ80cRLUit1MxtvYzp25u2EbI7AgWB9HOomzITfdR/YcLO1UAH7vj
-# XzU0FVXXH+G3VZ3ki/ccMx5oUfMnsf7rsZMDCnDEa5KtL6/l33BzjBhG0LmUmTQt
-# C8TGTOFeXUC9RHroXJcOQGExAx7GQeQMmhw98lGuS8Z/MhvMiiOTR6S3h0dbCEBw
-# BmrzgoDvSl016qpDkTeeuxJsu0FQ8eEdJDqpfL48UEx3Fc4waWgQEZs92KQ2YQcf
-# OVRHL7OgbK8uM4NxsQKGeiORJ8vGuOC+PhskwNGVhvnPriFu72d5XCB/ufgYqBgL
-# 4S2loYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
+# LwYJKoZIhvcNAQkEMSIEIHE7Ljq9ayenUQOwUb/U8sWYlwURa16dpOIw8/GBpyY/
+# MA0GCSqGSIb3DQEBAQUABIICAJ2j7WnOPHsD+a6pFBdT9edQmwqf9tZrmvlrI59+
+# rDH0LV3AxU/yTZVRsMTOR4QABBnJOrjnzb7h2ACyfHQhkKxqpSiav2sic5Iu869g
+# IktvWzUeZ8qN5tmWtRAv2k2D2YptdwSO+JHLW1ZfB8kwAdO4pcOOTxKFzV3AajL5
+# jbaaPihRWKchrkwdTfJEfTyjJPbqhimfhXf06TuWrCdBJ17pL6Zh+FGfrnPXTCbp
+# pZZIopDRX26p9qlTyzc20lqjRk70eZPkl4sRPS8Nzp3EozcD8Pg54xpxudaw/AwT
+# wcYdX75fdqu6M91M117MQLbDuyqhl6WjY7jBGPuQbkRBVxtAQikoT6e5XAqpB5pd
+# YDt/VulNkuVzA7pb5HsuwWI9VyrnYEi6WyxMnLWOC5671MSWubw0Ru4ZTGW9o62e
+# JzJ2oL2R4/+lfnDVUNbLWy7+iYcezn4opeB5BIttHI6/h6K72zdl9H5brkd4DWS3
+# ni5C4N8GrZI7DqkdqmsuUH3C2eR94AvSZazej22FhcNErzS64W1GO79uoh2LEiwI
+# 7zHTxYTQ/0fVsqq+NPgrp9WJNySnrcPmdrBqWUndTHmAYVDiaSr4suuEu4xAGd/w
+# LljEgM/gej967meef7KEO2VU16evXKP0ja76NmuHTNRm41B2VQOtYmCJLLs1fc9n
+# h/9uoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
 # VVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBU
 # cnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQC65mvFq6
 # f5WHxvnpBOMzBDANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzELBgkqhkiG
-# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDQxODIwNTEwN1owLwYJKoZIhvcNAQkE
-# MSIEIKwvMSd/IiWTgmGm2FqTYsWT/NIQWql0huclHg1EPK4uMA0GCSqGSIb3DQEB
-# AQUABIICAEVBKTMy+gh3xND0XnFlgQV7BtaEcZ59guaubYxrkUCRhraYTf2xCt/F
-# 9wrtgBbD+SmD+qfmYDRfJMMLvTauIyaLf4OwynupCW8w+wnYIby20m3nlo4v1Aag
-# cuYsN/sgIWdFFEHzqiNiVWZDWNdm4H/6nd9U0zckGrkDLzJIimNugyOw+6e754B3
-# JXl83/x9CYWIIFtO7AXw35s/X9sU8ZBx/ZId2thGx6jitGBkpe2nIdLTIK5L7Szh
-# CQe/o9KqlnwwsxsDWX1iDNpSo9fKzC2c/FCiqEO5Xv9NxelawmgtTpJ6kYB8Bt1Q
-# EDJCMv35RVWxNGC9NNnbLS2MIyEn0o12REjVVbN/zdzGS8lHBBhRR0o+saddR59p
-# 5aTf3PnULWx8vyK75gSHIFHs6LjDjCGadmgFCCKeVDISo3cIwZpw0p7AAyBMCX0H
-# MG7OrcPKeYb7p+cAAohKm4s1JONPBPq/CsRXPFwfqE6YpiNU+HzbKSCQj0U51kq5
-# NK7YTaVIWVSt4CgH7Y1utIMHL3afHvRaDq3GesIeMR7j8Zd4o+bDnrThePFI/5H0
-# v7fYvQ46hsqF9bclCK5otX54Z0+G3P5X9au99k9vgI83g4Ft0OoSljeWjMMCGBXk
-# nSOyca6jhyBPfFKK/hx4vM4GBWPlgZHQiVpH2xFKSLIdwbbVr///
+# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDQxOTE0MzA1NlowLwYJKoZIhvcNAQkE
+# MSIEIOShHKug/F/D2mtPaEc+2y+dyOdrai/u745+fTFqtN0tMA0GCSqGSIb3DQEB
+# AQUABIICAA+d4IfT31dZNLs98884IIg3hAbIE/bSFH8NrTAMQ6tQBqxcnx+mQuEv
+# Fa+KF/p7BqHyuKKkSCYa1wXw/JHOlfNctZT6Pj+NxK42B0bycRSr64GOLHJKzwQW
+# vPQiDvpJs/qfNuHgfTh5SAZxt27xAJ+ZHny/KjGHAFhGWHDq/O7rlxe9eUawdEKl
+# Lw9YhJ9sj1FYaUtyD5YhL3U1aU6JQYcia/EEuVWxGtkDddIrfQo798pv1Ui8uubP
+# MVkQ4ZESYkTIx1mMG5Vw66nh1JvRr6lGUbMx9AhJVQW8vn0QXV3KqDCbxCnfp0px
+# HF5NzAe9GxYkVqpKNo1BzOJZTI1Dt+OSmpqlkbsD8Bi5dTmoli7paIVIRqxFPqU+
+# 7BG+/CqZpBrjApTSnl+btwYP/e6rofQRRjOnLQ41o8Wv1DtN2Xssc7xnNrV/WZfh
+# UnYfF0SO2vZynaWFhv0WciSJGSMOpaL0k8I/UDD3yehQN1MXD1BuwHdHAaa0dS9Q
+# 5J5Kh0aNlz7WTtXcT5Pv6Fq4OT7rbo8DFADuEExuJaq5/75K8GlitjL9HZMnNfjl
+# hDiCRbwtBc12fDTitn59w52W2YKkVun6lvDLXFDDIsmC2khK1ZtdpcGAGA3YmVqF
+# I/cAGdF6qg1x1S9koADVnXr+cecO6Tr767Hpiinac1UHNCxEErsl
 # SIG # End signature block
