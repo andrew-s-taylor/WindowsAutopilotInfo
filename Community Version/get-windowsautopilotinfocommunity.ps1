@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 5.0.7
+.VERSION 5.0.8
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -40,6 +40,7 @@ v5.0.4 - Switched from Graph Groups module to raw requests
 v5.0.5 - Groups fix
 v5.0.6 - Don't display Entra ID token; don't prompt if -Force is specified
 v5.0.7 - Re-written update/delete to stop grabbing all devices
+v5.0.8 - Added certificate authentication
 #>
 
 <#
@@ -2053,8 +2054,11 @@ Invoke-MgGraphRequest -Uri $uri -Method Post -Body $json -OutputType PSObject
 
 
         # Connect
-        if ($AppId -ne "") {
+        if (($AppId -ne "") -and ($AppSecret -ne "")) {
             Connect-ToGraph -AppId $AppId -AppSecret $AppSecret -Tenant $TenantId | Out-Null
+        }
+        elseif ($CertificateThumbprint -ne "") {
+            Connect-ToGraph -AppId $AppId -CertificateThumbprint $CertificateThumbprint -Tenant $TenantId | Out-Null
         }
         else {
             $graph = Connect-ToGraph -scopes "Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All"
@@ -2567,8 +2571,8 @@ End {
 # SIG # Begin signature block
 # MIIoEwYJKoZIhvcNAQcCoIIoBDCCKAACAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDrQxu/Q7Gmn1AZ
-# EfFvcf1bSwoDylDYaF7DOb5ar9HZeqCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBLoKgE13cT5lEQ
+# /jMuwgudfIrNivw/c/PstGxPGrIRrKCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2750,33 +2754,33 @@ End {
 # IFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDpMA0GCWCG
 # SAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcN
 # AQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUw
-# LwYJKoZIhvcNAQkEMSIEIHE7Ljq9ayenUQOwUb/U8sWYlwURa16dpOIw8/GBpyY/
-# MA0GCSqGSIb3DQEBAQUABIICAJ2j7WnOPHsD+a6pFBdT9edQmwqf9tZrmvlrI59+
-# rDH0LV3AxU/yTZVRsMTOR4QABBnJOrjnzb7h2ACyfHQhkKxqpSiav2sic5Iu869g
-# IktvWzUeZ8qN5tmWtRAv2k2D2YptdwSO+JHLW1ZfB8kwAdO4pcOOTxKFzV3AajL5
-# jbaaPihRWKchrkwdTfJEfTyjJPbqhimfhXf06TuWrCdBJ17pL6Zh+FGfrnPXTCbp
-# pZZIopDRX26p9qlTyzc20lqjRk70eZPkl4sRPS8Nzp3EozcD8Pg54xpxudaw/AwT
-# wcYdX75fdqu6M91M117MQLbDuyqhl6WjY7jBGPuQbkRBVxtAQikoT6e5XAqpB5pd
-# YDt/VulNkuVzA7pb5HsuwWI9VyrnYEi6WyxMnLWOC5671MSWubw0Ru4ZTGW9o62e
-# JzJ2oL2R4/+lfnDVUNbLWy7+iYcezn4opeB5BIttHI6/h6K72zdl9H5brkd4DWS3
-# ni5C4N8GrZI7DqkdqmsuUH3C2eR94AvSZazej22FhcNErzS64W1GO79uoh2LEiwI
-# 7zHTxYTQ/0fVsqq+NPgrp9WJNySnrcPmdrBqWUndTHmAYVDiaSr4suuEu4xAGd/w
-# LljEgM/gej967meef7KEO2VU16evXKP0ja76NmuHTNRm41B2VQOtYmCJLLs1fc9n
-# h/9uoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
+# LwYJKoZIhvcNAQkEMSIEIDFslReA1WnReAAqflyBThcFOq5HU0xfH6jBPH0/0ibr
+# MA0GCSqGSIb3DQEBAQUABIICAAi1LY62j2WiBecZ54OVIBtG+vt/fq/upVI+mK4M
+# jlBaz//fdKbGUEiQ+9FEHS7LVU0HtI/7sjMxe+FppBBod/kMyj0zZnYGZhMAsQzC
+# f4UnFYrB16JwKAxg8gsFmq2atRE9tc33zjr1J2dk+CnH9lO+ZYwC86TeH1t+1Jrv
+# A0TmSeRZMxuBMEF/wmw/hac7IlIBwCI3WsIMCUki9FOkNwqJj6Q8V/zfSBB7xE6C
+# 6oBWziiXBH5wbesbqaF7oaUeA4XprpDBPVNJDcsJuYN6fsbcoBkcsTS1RQTUoqoh
+# WEcw1tZpNdpnQIZqEO28VZOzattfmv4Y61pVLkcVI8uNJ0UxXrX29MCRTnS5uwIg
+# jWnkpIGSXMcrHr/us8EgfKln5Q49orZG1fE46dcPLWAlzhzxPMAoJj8jbbp5nNf5
+# SIoRp1DI5Qd0ggtOrsARyakJpjgCMsf+6+vh+VEOYVfg8dYMN4s5Sm/CxnvAWv8M
+# SBTzTvxwOcB6+Y+0TnWrNLkS/ULb0b6SrKmjFmPmojsZufIR811Txxt4MClLGVub
+# 3qzJcpC330uVX3a5jL63V4+ddIjfIJNXqFBHdOd7UfQ5Phng+8LCQdBhpBKYlrCe
+# /tkVGn834DXUm/hmk3vwpaHmkUJHpdCbf8WnY5fToCo3XkAar7E96eCm+5zfz2g2
+# eVr0oYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
 # VVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBU
 # cnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQC65mvFq6
 # f5WHxvnpBOMzBDANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzELBgkqhkiG
-# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDQxOTE0MzA1NlowLwYJKoZIhvcNAQkE
-# MSIEIOShHKug/F/D2mtPaEc+2y+dyOdrai/u745+fTFqtN0tMA0GCSqGSIb3DQEB
-# AQUABIICAA+d4IfT31dZNLs98884IIg3hAbIE/bSFH8NrTAMQ6tQBqxcnx+mQuEv
-# Fa+KF/p7BqHyuKKkSCYa1wXw/JHOlfNctZT6Pj+NxK42B0bycRSr64GOLHJKzwQW
-# vPQiDvpJs/qfNuHgfTh5SAZxt27xAJ+ZHny/KjGHAFhGWHDq/O7rlxe9eUawdEKl
-# Lw9YhJ9sj1FYaUtyD5YhL3U1aU6JQYcia/EEuVWxGtkDddIrfQo798pv1Ui8uubP
-# MVkQ4ZESYkTIx1mMG5Vw66nh1JvRr6lGUbMx9AhJVQW8vn0QXV3KqDCbxCnfp0px
-# HF5NzAe9GxYkVqpKNo1BzOJZTI1Dt+OSmpqlkbsD8Bi5dTmoli7paIVIRqxFPqU+
-# 7BG+/CqZpBrjApTSnl+btwYP/e6rofQRRjOnLQ41o8Wv1DtN2Xssc7xnNrV/WZfh
-# UnYfF0SO2vZynaWFhv0WciSJGSMOpaL0k8I/UDD3yehQN1MXD1BuwHdHAaa0dS9Q
-# 5J5Kh0aNlz7WTtXcT5Pv6Fq4OT7rbo8DFADuEExuJaq5/75K8GlitjL9HZMnNfjl
-# hDiCRbwtBc12fDTitn59w52W2YKkVun6lvDLXFDDIsmC2khK1ZtdpcGAGA3YmVqF
-# I/cAGdF6qg1x1S9koADVnXr+cecO6Tr767Hpiinac1UHNCxEErsl
+# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDQzMDE5NDgzOVowLwYJKoZIhvcNAQkE
+# MSIEIGIavp8wRByZmfprdAeN6eJQD+7hZqI2Mz4PMfn6v/zzMA0GCSqGSIb3DQEB
+# AQUABIICACJvPuzX0+9g//lYJ3ymV2yqMn78TJb6iRHmuZpCYvBmxWGCjMHamEvn
+# lDBXPOS7MXTERxXThpAiEMH92sn1bafgSARBP6ss+XtIYJjYVlvJ1VvoNxpx24X8
+# 1GnBxLNCePp7hF0vsX8RZjsgk6Vv/2arHcIl5+2mJp1qMMitNUF9nCq4bpzc1r19
+# 5Z+J2PKat+duAQqdMhYMhKwdmVQV+xDO/qwCa/PNX51I7ESD+ohg2BtcfbLOTdFx
+# p0Spy8EmCaUiRpC1SMjvu/n6FZli++ZWR2qkt6UzzBfBKu2nE8toorOs4p5ZSDVI
+# 847xfsxLAwLMgMN67KFsLlosaUIgy4krkR8DT9U3G2Yw+iFCKfFWIAToI1xYVo51
+# CU5UGh822fFYv8+A1wTs1vMMUVPP6x6QVnJTvOWRkgxXiIsPieEhWn/LQF+YyWwo
+# 5ffgYO01lefeDIVX9Z6z/w4Ci9NUt4jGchArfRWDHycqWZWmNE9RWr1PL9hA+I8c
+# duOORY5gARiWYqDch1wLwbbGaQoLoJMO222U3HR1GDRyhTn9WslBHuYs5IWF6n+W
+# nEcS5dX6UvBdPXMmcWgZCpEkH+jtnCjLM5ABt+rYckPLkNgNNTMeaD6vGhTYQBcS
+# v0iOI+WcfUmCODZeauIrfXtOLRUvM2etJGaXg4G+rugIUVPk3ZFn
 # SIG # End signature block
