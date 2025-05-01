@@ -1,7 +1,7 @@
 
 <#PSScriptInfo
 
-.VERSION 6.0
+.VERSION 6.1
 .GUID b45605b6-65aa-45ec-a23c-f5291f9fb519
 .AUTHOR AndrewTaylor, Michael Niehaus & Steven van Beek
 .COMPANYNAME
@@ -14,7 +14,7 @@
 .REQUIREDSCRIPTS
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
-.RELEASENOTES
+Version 6.1: Bug fixes.
 Verison 6.0: Added APv2 support and various other enhancements
 Version 5.14: Added auto-install of Graph modules
 Version 5.13: Fixed issue with bearer
@@ -57,9 +57,6 @@ Version 1.0: Original published version
 .DESCRIPTION
 This script displays diagnostics information from the current PC or a captured set of logs. This includes details about the Autopilot profile settings; policies, apps, certificate profiles, etc. being tracked via the Enrollment Status Page; and additional information.
  
-This should work with Windows 10 1903 and later (earlier versions have not been validated). This script will not work on ARM64 systems due to registry redirection from the use of x86 PowerShell.exe.
- 
-
 #> 
 <#
 .SYNOPSIS
@@ -913,7 +910,7 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
         $script:useFile = $true
 
         # If using a CAB file, extract the needed files from it
-        if ((Split-Path $File -Extension) -ieq ".cab") {
+        if ($File.ToLower().EndsWith(".cab")) {
             $null = & expand.exe "$File" -F:* "$($env:TEMP)\ESPStatus.tmp\" 
         }
         else {
@@ -923,7 +920,7 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
             $realFile = Get-ChildItem "$($env:TEMP)\ESPStatus.tmp" -Filter "*MDMDiagnostics*_cab" | Get-ChildItem
             if ($realFile) {
                 # Expand them into the temp folder -- creates a bit of a mess, but it's a temporary mess...
-                $null = & expand.exe "$realFile" -F:* "$($env:TEMP)\ESPStatus.tmp\" 
+                $null = & expand.exe "$($realFile.FullName)" -F:* "$($env:TEMP)\ESPStatus.tmp\"
             }
         }
 
