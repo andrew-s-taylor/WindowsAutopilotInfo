@@ -1,7 +1,7 @@
 
 <#PSScriptInfo
 
-.VERSION 5.14
+.VERSION 6.0
 .GUID b45605b6-65aa-45ec-a23c-f5291f9fb519
 .AUTHOR AndrewTaylor, Michael Niehaus & Steven van Beek
 .COMPANYNAME
@@ -15,6 +15,7 @@
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
 .RELEASENOTES
+Verison 6.0: Added APv2 support and various other enhancements
 Version 5.14: Added auto-install of Graph modules
 Version 5.13: Fixed issue with bearer
 Version 5.12: Removed all commandlets and added bearer param
@@ -64,22 +65,30 @@ This should work with Windows 10 1903 and later (earlier versions have not been 
 .SYNOPSIS
 Displays Windows Autopilot diagnostics information from the current PC or a captured set of logs.
  
-
 .PARAMETER Online
 Look up the actual policy and app names via the Microsoft Graph API
  
 .PARAMETER AllSessions
 Show all ESP progress instead of just the final details.
  
-.PARAMETER CABFile
-Processes the information in the specified CAB file (captured by MDMDiagnosticsTool.exe -area Autopilot -cab filename.cab) instead of from the registry.
- 
-.PARAMETER ZIPFile
-Processes the information in the specified ZIP file (captured by MDMDiagnosticsTool.exe -area Autopilot -zip filename.zip) instead of from the registry.
+.PARAMETER File
+Processes the information in the specified file (captured either by MDMDiagnosticsTool.exe -area Autopilot -cab filename.cab or MDMDiagnosticsTool.exe -area Autopilot -zip filename.zip) instead of from the registry.
  
 .PARAMETER ShowPolicies
 Shows the policy details as recorded in the NodeCache registry keys, in the order that the policies were received by the client.
+
+.PARAMETER Tenant
+The GUID (text string), needed when specifying an app ID/secret.
  
+.PARAMETER AppId
+The app ID (GUID) for the Entra ID app being used to authenticate with Intune
+
+.PARAMETER AppSecret
+The app secret (effectively a password) for the specified app ID.
+ 
+.PARAMETER Bearer
+An existing bearer token that will be used to authentcate to Intune.
+
 .EXAMPLE
 .\Get-AutopilotDiagnostics.ps1
  
@@ -87,13 +96,13 @@ Shows the policy details as recorded in the NodeCache registry keys, in the orde
 .\Get-AutopilotDiagnostics.ps1 -Online
  
 .EXAMPLE
-.\Get-AutopilotESPStatus.ps1 -AllSessions
+.\Get-AutopilotDiagnostics.ps1 -AllSessions
  
 .EXAMPLE
-.\Get-AutopilotDiagnostics.ps1 -CABFile C:\Autopilot.cab -Online -AllSessions
+.\Get-AutopilotDiagnostics.ps1 -File C:\Autopilot.cab -Online -AllSessions
  
 .EXAMPLE
-.\Get-AutopilotDiagnostics.ps1 -ZIPFile C:\Autopilot.zip
+.\Get-AutopilotDiagnostics.ps1 -File C:\Autopilot.zip
  
 .EXAMPLE
 .\Get-AutopilotDiagnostics.ps1 -ShowPolicies
@@ -102,95 +111,19 @@ Shows the policy details as recorded in the NodeCache registry keys, in the orde
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $False)] [String] $CABFile = $null,
-    [Parameter(Mandatory = $False)] [String] $ZIPFile = $null,
+    [Alias("CABFile","ZIPFile","FullName")][Parameter(Mandatory = $False, ValueFromPipelineByPropertyName = $true)] [String] $File = $null,
     [Parameter(Mandatory = $False)] [Switch] $Online = $false,
     [Parameter(Mandatory = $False)] [Switch] $AllSessions = $false,
     [Parameter(Mandatory = $False)] [Switch] $ShowPolicies = $false,
-    [Parameter(Mandatory = $false)] [string]$Tenant,
-    [Parameter(Mandatory = $false)] [string]$AppId,
-    [Parameter(Mandatory = $false)] [string]$AppSecret,
-    [Parameter(Mandatory = $false)] [string]$bearer
+    [Parameter(Mandatory = $false)] [string] $Tenant,
+    [Parameter(Mandatory = $false)] [string] $AppId,
+    [Parameter(Mandatory = $false)] [string] $AppSecret,
+    [Parameter(Mandatory = $false)] [string] $Bearer
 )
 
 Begin {
-    # Process log files if needed
-    $script:useFile = $false
-    if ($CABFile -or $ZIPFile) {
 
-        if (-not (Test-Path "$($env:TEMP)\ESPStatus.tmp")) {
-            New-Item -Path "$($env:TEMP)\ESPStatus.tmp" -ItemType "directory" | Out-Null
-        }
-        Remove-Item -Path "$($env:TEMP)\ESPStatus.tmp\*.*" -Force -Recurse        
-        $script:useFile = $true
-
-        # If using a CAB file, extract the needed files from it
-        if ($CABFile) {
-            $fileList = @("MdmDiagReport_RegistryDump.reg", "microsoft-windows-devicemanagement-enterprise-diagnostics-provider-admin.evtx",
-                "microsoft-windows-user device registration-admin.evtx", "AutopilotDDSZTDFile.json", "*.csv")
-
-            $fileList | % {
-                $null = & expand.exe "$CABFile" -F:$_ "$($env:TEMP)\ESPStatus.tmp\" 
-                if (-not (Test-Path "$($env:TEMP)\ESPStatus.tmp\$_")) {
-                    Write-Error "Unable to extract $_ from $CABFile"
-                }
-            }
-        }
-        else {
-            # If using a ZIP file, just extract the entire contents (not as easy to do selected files)
-            Expand-Archive -Path $ZIPFile -DestinationPath "$($env:TEMP)\ESPStatus.tmp\"
-        }
-
-        # Get the hardware hash information
-        $csvFile = (Get-ChildItem "$($env:TEMP)\ESPStatus.tmp\*.csv").FullName
-        if ($csvFile) {
-            $csv = Get-Content $csvFile | ConvertFrom-Csv
-            $hash = $csv.'Hardware Hash'
-        }
-
-        # Edit the path in the .reg file
-        $content = Get-Content -Path "$($env:TEMP)\ESPStatus.tmp\MdmDiagReport_RegistryDump.reg"
-        $content = $content -replace "\[HKEY_CURRENT_USER\\", "[HKEY_CURRENT_USER\ESPStatus.tmp\USER\"
-        $content = $content -replace "\[HKEY_LOCAL_MACHINE\\", "[HKEY_CURRENT_USER\ESPStatus.tmp\MACHINE\"
-        $content = $content -replace '^ "', '"'
-        $content = $content -replace '^ @', '@'
-        $content = $content -replace 'DWORD:', 'dword:'
-        "Windows Registry Editor Version 5.00`n" | Set-Content -Path "$($env:TEMP)\ESPStatus.tmp\MdmDiagReport_Edited.reg"
-        $content | Add-Content -Path "$($env:TEMP)\ESPStatus.tmp\MdmDiagReport_Edited.reg"
-
-        # Remove the registry info if it exists
-        if (Test-Path "HKCU:\ESPStatus.tmp") {
-            Remove-Item -Path "HKCU:\ESPStatus.tmp" -Recurse -Force
-        }
-
-        # Import the .reg file
-        $null = & reg.exe IMPORT "$($env:TEMP)\ESPStatus.tmp\MdmDiagReport_Edited.reg" 2>&1
-
-        # Configure the (not live) constants
-        $script:provisioningPath = "HKCU:\ESPStatus.tmp\MACHINE\software\microsoft\provisioning"
-        $script:autopilotDiagPath = "HKCU:\ESPStatus.tmp\MACHINE\software\microsoft\provisioning\Diagnostics\Autopilot"
-        $script:omadmPath = "HKCU:\ESPStatus.tmp\MACHINE\software\microsoft\provisioning\OMADM"
-        $script:path = "HKCU:\ESPStatus.tmp\MACHINE\Software\Microsoft\Windows\Autopilot\EnrollmentStatusTracking\ESPTrackingInfo\Diagnostics"
-        $script:msiPath = "HKCU:\ESPStatus.tmp\MACHINE\Software\Microsoft\EnterpriseDesktopAppManagement"
-        $script:officePath = "HKCU:\ESPStatus.tmp\MACHINE\Software\Microsoft\OfficeCSP"
-        $script:sidecarPath = "HKCU:\ESPStatus.tmp\MACHINE\Software\Microsoft\IntuneManagementExtension\Win32Apps"
-        $script:enrollmentsPath = "HKCU:\ESPStatus.tmp\MACHINE\software\microsoft\enrollments"
-    }
-    else {
-        # Configure live constants
-        $script:provisioningPath = "HKLM:\software\microsoft\provisioning"
-        $script:autopilotDiagPath = "HKLM:\software\microsoft\provisioning\Diagnostics\Autopilot"
-        $script:omadmPath = "HKLM:\software\microsoft\provisioning\OMADM"
-        $script:path = "HKLM:\Software\Microsoft\Windows\Autopilot\EnrollmentStatusTracking\ESPTrackingInfo\Diagnostics"
-        $script:msiPath = "HKLM:\Software\Microsoft\EnterpriseDesktopAppManagement"
-        $script:officePath = "HKLM:\Software\Microsoft\OfficeCSP"
-        $script:sidecarPath = "HKLM:\Software\Microsoft\IntuneManagementExtension\Win32Apps"
-        $script:enrollmentsPath = "HKLM:\Software\Microsoft\enrollments"
-
-        $hash = (Get-WmiObject -Namespace root/cimv2/mdm/dmmap -Class MDM_DevDetail_Ext01 -Filter "InstanceID='Ext' AND ParentID='./DevDetail'").DeviceHardwareData
-    }
-
-    # Configure other constants
+    # Configure constants and global variables
     $script:officeStatus = @{"0" = "None"; "10" = "Initialized"; "20" = "Download In Progress"; "25" = "Pending Download Retry";
         "30" = "Download Failed"; "40" = "Download Completed"; "48" = "Pending User Session"; "50" = "Enforcement In Progress"; 
         "55" = "Pending Enforcement Retry"; "60" = "Enforcement Failed"; "70" = "Success / Enforcement Completed"
@@ -198,8 +131,25 @@ Begin {
     $script:espStatus = @{"1" = "Not Installed"; "2" = "Downloading / Installing"; "3" = "Success / Installed"; "4" = "Error / Failed" }
     $script:policyStatus = @{"0" = "Not Processed"; "1" = "Processed" }
 
-    # Configure any other global variables
-    $script:observedTimeline = @()
+    enum AutopilotScenarioEnum {
+        Unknown
+        AutopilotV1
+        AutopilotJson
+        EspOnly
+        AutopilotV2
+    }
+
+    enum WorkloadState
+    {
+        NotStarted
+        Completed
+        Skipped
+        Uninstalled
+        Failed
+        InProgress
+        RebootRequired
+        Cancelled
+    }
 }
 
 Process {
@@ -239,8 +189,8 @@ getallpagination -url "https://graph.microsoft.com/v1.0/groups"
         return $alloutput
     }
     
-Function Connect-ToGraph {
-    <#
+    Function Connect-ToGraph {
+        <#
 .SYNOPSIS
 Authenticates to the Graph API via the Microsoft.Graph.Authentication module.
  
@@ -263,70 +213,73 @@ Specifies the user scopes for interactive authentication.
 Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
  
 -#>
-    [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory = $false)] [string]$Tenant,
-        [Parameter(Mandatory = $false)] [string]$AppId,
-        [Parameter(Mandatory = $false)] [string]$AppSecret,
-        [Parameter(Mandatory = $false)] [string]$scopes,
-        [Parameter(Mandatory = $false)] [string]$bearer
-    )
+        [cmdletbinding()]
+        param
+        (
+            [Parameter(Mandatory = $false)] [string] $Tenant,
+            [Parameter(Mandatory = $false)] [string] $AppId,
+            [Parameter(Mandatory = $false)] [string] $AppSecret,
+            [Parameter(Mandatory = $false)] [string] $scopes,
+            [Parameter(Mandatory = $false)] [string] $Bearer
+        )
 
-    Process {
-        Import-Module Microsoft.Graph.Authentication
-        $version = (get-module microsoft.graph.authentication | Select-Object -expandproperty Version).major
+        Process {
+            Import-Module Microsoft.Graph.Authentication
+            $version = (get-module microsoft.graph.authentication | Select-Object -expandproperty Version).major
 
-        if ($AppId -ne "") {
-            $body = @{
-                grant_type    = "client_credentials";
-                client_id     = $AppId;
-                client_secret = $AppSecret;
-                scope         = "https://graph.microsoft.com/.default";
-            }
+            if ($AppId -ne "") {
+                $body = @{
+                    grant_type    = "client_credentials";
+                    client_id     = $AppId;
+                    client_secret = $AppSecret;
+                    scope         = "https://graph.microsoft.com/.default";
+                }
      
-            $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$Tenant/oauth2/v2.0/token -Body $body
-            $accessToken = $response.access_token
+                $response = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$Tenant/oauth2/v2.0/token -Body $body
+                $accessToken = $response.access_token
      
-            $accessToken
-            if ($version -eq 2) {
-                write-host "Version 2 module detected"
-                $accesstokenfinal = ConvertTo-SecureString -String $accessToken -AsPlainText -Force
+                $accessToken
+                if ($version -eq 2) {
+                    Write-Verbose "Version 2 module detected"
+                    $accesstokenfinal = ConvertTo-SecureString -String $accessToken -AsPlainText -Force
+                }
+                else {
+                    Write-Verbose "Version 1 Module Detected"
+                    Select-MgProfile -Name Beta
+                    $accesstokenfinal = $accessToken
+                }
+                Connect-MgGraph -AccessToken $accesstokenfinal -NoWelcome
+                Write-Verbose "Connected to Intune tenant $Tenant using app-based authentication (Azure AD authentication not supported)"
+            }
+            elseif ($Bearer -ne "") {
+                if ($version -eq 2) {
+                    Write-Verbose "Version 2 module detected"
+                    $accesstokenfinal = ConvertTo-SecureString -String $Bearer -AsPlainText -Force
+                }
+                else {
+                    Write-Verbose "Version 1 Module Detected"
+                    Select-MgProfile -Name Beta
+                    $accesstokenfinal = $Bearer
+                }
+                Connect-MgGraph -AccessToken $accesstokenfinal -NoWelcome
+                Write-Verbose "Connected to Intune tenant $Tenant using app-based authentication (Azure AD authentication not supported)"
             }
             else {
-                write-host "Version 1 Module Detected"
-                Select-MgProfile -Name Beta
-                $accesstokenfinal = $accessToken
+                if ($version -eq 2) {
+                    Write-Verbose "Version 2 module detected"
+                }
+                else {
+                    Write-Verbose "Version 1 Module Detected"
+                    Select-MgProfile -Name Beta
+                }
+                Connect-MgGraph -scopes $scopes -NoWelcome
             }
-            $graph = Connect-MgGraph  -AccessToken $accesstokenfinal 
-            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
-        }
-        elseif ($bearer -ne "") {
-            if ($version -eq 2) {
-                write-host "Version 2 module detected"
-                $accesstokenfinal = ConvertTo-SecureString -String $bearer -AsPlainText -Force
-            }
-            else {
-                write-host "Version 1 Module Detected"
-                Select-MgProfile -Name Beta
-                $accesstokenfinal = $bearer
-            }
-            $graph = Connect-MgGraph  -AccessToken $accesstokenfinal 
-            Write-Host "Connected to Intune tenant $TenantId using app-based authentication (Azure AD authentication not supported)"
-        }
-        else {
-            if ($version -eq 2) {
-                write-host "Version 2 module detected"
-            }
-            else {
-                write-host "Version 1 Module Detected"
-                Select-MgProfile -Name Beta
-            }
-            $graph = Connect-MgGraph -scopes $scopes
+            # Return the context
+            $graph = Get-MgContext
             Write-Host "Connected to Intune tenant $($graph.TenantId)"
+            $graph
         }
-    }
-}    
+    }    
 
     Function RecordStatus() {
         param
@@ -343,7 +296,8 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
             # Apply a fudge so that the downloading of the next app appears one second after the previous completion
             if ($status -like "Downloading*") {
                 $adjustedDate = $date.AddSeconds(1)
-            } else {
+            }
+            else {
                 $adjustedDate = $date
             }
             $script:observedTimeline += New-Object PSObject -Property @{
@@ -397,7 +351,8 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
                     elseif ($Online) {
                         $found = $apps | ? { $_.ProductCode -contains $msiKey }
                         $msiKey = "$($found.DisplayName) ($($msiKey))"
-                    } elseif ($currentUser -eq "S-0-0-00-0000000000-0000000000-000000000-000") {
+                    }
+                    elseif ($currentUser -eq "S-0-0-00-0000000000-0000000000-000000000-000") {
                         # Try to read the name from the uninstall registry key
                         if (Test-Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$msiKey") {
                             $displayName = (Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$msiKey").DisplayName
@@ -500,6 +455,104 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
 
     }
 
+    Function ProcessSidecarV2() {
+        param
+        (
+            [Parameter(ValueFromPipelineByPropertyName = $True)] [bool] $display = $true
+        )
+
+        Begin {
+            if ($display) { Write-Host "Sidecar apps:" }
+            if ($null -eq $script:DOEvents -and (-not $script:useFile)) {
+                $script:DOEvents = Get-DeliveryOptimizationLog | Where-Object { $_.Function -match "(DownloadStart)|(DownloadCompleted)" -and $_.Message -like "*.intunewin.bin,*" }
+            }
+        }
+
+        Process {
+            if (Test-Path "$sidecarWin32Apps\ProvisioningProgress") {
+                $details = Get-ItemPropertyValue -Path "$sidecarWin32Apps\ProvisioningProgress" -Name "ProvisioningProgress"
+                if ($details) {
+                    $provisioningProgress = $details | ConvertFrom-Json
+                    $provisioningProgress.Workloads | ForEach-Object {
+                        # "WorkloadId":"41e931ef-9951-4646-aa00-6df474a5d66d","FriendlyName":"PowerToys 0.90.1","WorkloadState":1,"StartTime":"\/Date(1745871176634)\/","EndTime":"\/Date(1745871256672)\/","ErrorCode":null }
+                        RecordStatus -detail $_.FriendlyName -status "Installation started" -color "Yellow" -date $_.StartTime
+                        $status = [WorkloadState]$_.WorkloadState
+                        if ($status -eq [WorkloadState]::Completed) {
+                            if ($display) { Write-Host " $($_.FriendlyName) : $status" -ForegroundColor Green }
+                            RecordStatus -detail $_.FriendlyName -status $status -color "Green" -date $_.EndTime
+                        } elseif ($status -eq [WorkloadState]::Failed) {
+                            $enforcementStatus = Get-ItemPropertyValue -Path "$sidecarWin32Apps\00000000-0000-0000-0000-000000000000\$($_.WorkloadId)*\EnforcementStateMessage" -Name EnforcementStateMessage | ConvertFrom-Json
+                            if ($display) { Write-Host " $($_.FriendlyName) : $status, rc = $($enforcementStatus.ErrorCode)" -ForegroundColor Red }
+                            RecordStatus -detail $_.FriendlyName -status $status -color "Red" -date $_.EndTime
+                        } else {
+                            if ($display) { Write-Host " $($_.FriendlyName) : $status" -ForegroundColor Yellow }
+                            RecordStatus -detail $_.FriendlyName -status $status -color "Yellow" -date $_.EndTime
+                        }
+
+                        # Try to find the DO events.
+                        if ($script:DOEvents) {
+                            $appName = $_.FriendlyName
+                            $appId = $_.WorkloadId
+                            $script:DOEvents | Where-Object { $_.Message -ilike "*$appId*" } | ForEach-Object {
+                                if ($_.Function.Contains("DownloadStart")) 
+                                {
+                                    $op = "DownloadStart"
+                                } else {
+                                    $op = "DownloadCompleted"
+                                }
+                                RecordStatus -detail $appName -status "DO $op" -color "Yellow" -date $_.TimeCreated
+                            }    
+                        }
+                    }
+                } else {
+                    if ($display) { Write-Host " Provisioning progress details not found." }
+                }            
+            } else {
+                if ($display) { Write-Host " Provisioning progress not found." }
+            }
+        }
+    }
+
+    Function ProcessSidecarV2Scripts() {
+        param
+        (
+            [Parameter(ValueFromPipelineByPropertyName = $True)] [bool] $display = $true
+        )
+
+        Begin {
+            if ($display) { Write-Host "Sidecar scripts:" }
+        }
+
+        Process {
+            if (Test-Path "$sidecarPath\Policies\00000000-0000-0000-0000-000000000000") {
+                Get-ChildItem -Path "$sidecarPath\Policies\00000000-0000-0000-0000-000000000000" | ForEach-Object {
+                    $scriptId = $_.PSChildName
+                    $scriptName = $scriptId
+                    $properties = Get-ItemProperty -Path $_.PSPath
+                    $result = $properties.Result
+                    $when = [DateTime]$properties.LastUpdatedTimeUtc
+                    if ($Online) {
+                        $scripts | Where-Object { $scriptId -eq $_.Id } | ForEach-Object {
+                            $scriptName = "$($_.DisplayName) (script)"                       
+                        }
+                    }
+                    if ($result -eq "Success") {
+                        if ($display) { Write-Host " $scriptName : $result" -ForegroundColor Green }
+                        RecordStatus -detail $scriptName -status $result -color "Green" -date $when
+                    } elseif ($result -eq "Failed") {
+                        if ($display) { Write-Host " $scriptName : $result" -ForegroundColor Red }
+                        RecordStatus -detail $scriptName -status $result -color "Red" -date $when
+                    } else {
+                        if ($display) { Write-Host " $scriptName : $result" -ForegroundColor Yellow }
+                        RecordStatus -detail $scriptName -status $result -color "Red" -date $when
+                    }
+                }            
+            } else {
+                if ($display) { Write-Host " Provisioning script info not found." }
+            }
+        }
+    }
+
     Function ProcessSidecar() {
         param
         (
@@ -511,7 +564,7 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
         Begin {
             if ($display) { Write-Host "Sidecar apps:" }
             if ($null -eq $script:DOEvents -and (-not $script:useFile)) {
-                $script:DOEvents = Get-DeliveryOptimizationLog | Where-Object { $_.Function -match "(DownloadStart)|(DownloadCompleted)" -and $_.Message -like "*.intunewin*" }
+                $script:DOEvents = Get-DeliveryOptimizationLog | Where-Object { $_.Function -match "(DownloadStart)|(DownloadCompleted)" -and $_.Message -like "*.intunewin.bin,*" }
             }
         }
 
@@ -525,7 +578,7 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
                     $win32Key = "$($found.DisplayName) ($($win32Key))"
                 }
                 $appGuid = $win32Key.Substring(9)
-                $sidecarApp = "$sidecarPath\$currentUser\$appGuid"
+                $sidecarApp = "$sidecarWin32Apps\$currentUser\$appGuid"
                 $exitCode = $null
                 if (Test-Path $sidecarApp) {
                     $exitCode = (Get-ItemProperty -Path $sidecarApp).ExitCode
@@ -541,7 +594,7 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
                 }
                 elseif ($status -eq "4") {
                     if ($exitCode -ne $null) {
-                        if ($display) { Write-Host " Win32 $win32Key : $status ($($espStatus[$status.ToString()]), rc = $exitCode)" -ForegroundColor Red }
+                        if ($display) { Write-Host " Win32 $win32Key : $status ($($espStatus[$status.ToString()]), rc = $exitCode" -ForegroundColor Red }
                     }
                     else {
                         if ($display) { Write-Host " Win32 $win32Key : $status ($($espStatus[$status.ToString()]))" -ForegroundColor Red }
@@ -561,7 +614,13 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
                     if ($status -eq "2") {
                         # Try to find the DO events.
                         $script:DOEvents | Where-Object { $_.Message -ilike "*$appGuid*" } | ForEach-Object {
-                            RecordStatus -detail "Win32 $win32Key" -status "DO $($_.Function.Substring(32))" -color "Yellow" -date $_.TimeCreated.ToLocalTime()
+                            if ($_.Function.Contains("DownloadStart")) 
+                            {
+                                $op = "DownloadStart"
+                            } else {
+                                $op = "DownloadCompleted"
+                            }
+                            RecordStatus -detail "Win32 $win32Key" -status "DO $op" -color "Yellow" -date $_.TimeCreated.ToLocalTime()
                         }
                     }
                 }
@@ -649,27 +708,30 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
     }
 
     Function TrimMSI() {
-	param (
-		[object] $event,
-		[string] $sidecarProductCode
-	)
+        param (
+            [object] $e,
+            [string] $sidecarProductCode
+        )
 
-    # Fix up the name
-	if ($event.Properties[0].Value -eq $sidecarProductCode) {
-		return "Intune Management Extension"
-	} elseif ($event.Properties[0].Value.StartsWith("{{")) {
-		$r = $event.Properties[0].Value.Substring(1, $event.Properties[0].Value.Length - 2)
-	} else {
-		$r = $event.Properties[0].Value
-	}
+        # Fix up the name
+        if ($event.Id -eq 1924) {
+            $r = $event.Properties[2].Value
+        } else {
+            $r = $event.Properties[0].Value
+        }
+        $productCode = $r.Replace("{","").Replace("}","")
+        if ($productCode -eq $sidecarProductCode) {
+            return "Intune Management Extension ($r)"
+        }
 
-	# See if we can find the real name
-    if (Test-Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$r") {
-		$displayName = (Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$r").DisplayName
-        return "$displayName ($($r))"
-    } else {
-    	return $r
-    }
+        # See if we can find the real name
+        if (Test-Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{{$productCode}}") {
+            $displayName = (Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$productCode").DisplayName
+            return "$displayName ($r)"
+        }
+        else {
+            return $r
+        }
 
     }
 
@@ -682,14 +744,14 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
                 Get-ChildItem -path "$msiPath\S-0-0-00-0000000000-0000000000-000000000-000\MSI" | % {
                     $file = (Get-ItemProperty -Path $_.PSPath).CurrentDownloadUrl
                     if ($file -match "IntuneWindowsAgent.msi") {
-                        $productCode = Get-ItemPropertyValue -Path $_.PSPath -Name ProductCode
+                        $productCode = (Get-ItemPropertyValue -Path $_.PSPath -Name ProductCode).Replace("{","").Replace("}","")
                     }
                 }
             }
 
             # Process device management events
             if ($script:useFile) {
-                $events = Get-WinEvent -Path "$($env:TEMP)\ESPStatus.tmp\microsoft-windows-devicemanagement-enterprise-diagnostics-provider-admin.evtx" -Oldest | ? { ($_.Id -in 1905, 1906, 1920, 1922) -or $_.Id -in (72, 100, 107, 109, 110, 111) }
+                $events = Get-WinEvent -Path "$($env:TEMP)\ESPStatus.tmp\microsoft-windows-devicemanagement-enterprise-diagnostics-provider-admin.evtx" -Oldest | ? { ($_.Id -in 1905, 1906, 1920, 1922, 1924) -or $_.Id -in (72, 100, 107, 109, 110, 111) }
             }
             else {
                 $events = Get-WinEvent -LogName Microsoft-Windows-DeviceManagement-Enterprise-Diagnostics-Provider/Admin -Oldest | ? { ($_.Id -in 1905, 1906, 1920, 1922) -or $_.Id -in (72, 100, 107, 109, 110, 111) }
@@ -717,9 +779,10 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
                     1906 { $detail = (TrimMSI $event $productCode); $message = "Download finished" }
                     1920 { $detail = (TrimMSI $event $productCode); $message = "Installation started" }
                     1922 { $detail = (TrimMSI $event $productCode); $message = "Installation finished" }
+                    1924 { $detail = (TrimMSI $event $productCode); $message = "Installation failed"; $color = "Red" }
                     { $_ -in (1922, 72) } { $color = "Green" }
                 }
-                RecordStatus -detail $detail -date $_.TimeCreated -status $message -color $color
+                RecordStatus -detail $detail -date $_.TimeCreated.ToUniversalTime() -status $message -color $color
             }
 
             # Process device registration events
@@ -729,9 +792,10 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
             else {
                 try {
                     $events = Get-WinEvent -LogName 'Microsoft-Windows-User Device Registration/Admin' -Oldest -ErrorAction Stop | ? { $_.Id -in (306, 101) }
-                } catch [Exception] {
+                }
+                catch [Exception] {
                     if ($_.FullyQualifiedErrorId -match "NoMatchingEventsFound") {
-                     $events = @()
+                        $events = @()
                     }
                 }
             }
@@ -741,11 +805,43 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
                 $color = "Yellow"
                 $event = $_
                 switch ($_.id) {
-                    101 { $detail = "Device Registration"; $message = "SCP discovery successful." }
-                    304 { $detail = "Device Registration"; $message = "Hybrid AADJ device registration failed." }
-                    306 { $detail = "Device Registration"; $message = "Hybrid AADJ device registration succeeded."; $color = 'Green' }
+                    101 { $detail = "Device Registration"; $message = "SCP discovery successful" }
+                    304 { $detail = "Device Registration"; $message = "Hybrid AADJ device registration failed" }
+                    306 { $detail = "Device Registration"; $message = "Hybrid AADJ device registration succeeded"; $color = 'Green' }
                 }
-                RecordStatus -detail $detail -date $_.TimeCreated -status $message -color $color
+                RecordStatus -detail $detail -date $_.TimeCreated.ToUniversalTime() -status $message -color $color
+            }
+
+            # Add DO events for Office click-to-run downloads
+            if (-not $script:useFile) {
+                Get-DeliveryOptimizationLog | Where-Object { $_.Function -match "(DownloadStart)|(DownloadCompleted)" -and $_.Message -like "*Microsoft Office Click-to-Run*" } | ForEach-Object {
+                    # Extract the file ID because we want to list each file downloaded
+                    $fileId = ""
+                    $fileIdStart = $_.Message.IndexOf("fileId: ")
+                    if ($fileIdStart -eq -1) {
+                        # Might be using "fileId = ", because this DO event information sucks
+                        $fileIdStart = $_.Message.IndexOf("fileId = ")
+                        $skip = 9
+                    } else {
+                        $skip = 8
+                    }
+                    if ($fileIdStart -gt 0) {
+                        # Get from the start of the actual ID
+                        $fileId = $_.Message.Substring($fileIdStart + $skip)
+                        # Find the end and chop it off
+                        $fileIdEnd = $fileId.IndexOf(",")
+                        $fileId = $fileId.Substring(0, $fileIdEnd)
+                        # Remove the extra GUID from the beginning
+                        $fileId = $fileId.Substring(37)
+                    }
+                    if ($_.Function.Contains("DownloadStart")) 
+                    {
+                        $op = "DownloadStart"
+                    } else {
+                        $op = "DownloadCompleted"
+                    }
+                    RecordStatus -detail "Microsoft Office C2R ($fileId)" -status $op -color "Yellow" -date $_.TimeCreated
+                }
             }
 
         }
@@ -756,41 +852,35 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
     # Main code
     #------------------------
 
+    $script:observedTimeline = @()
+
     # If online, make sure we are able to authenticate
     if ($Online) {
 
         ##Check if we need to install the module
         #Install MS Graph if not available
-if (Get-Module -ListAvailable -Name Microsoft.Graph.Authentication) {
-    Write-Host "Microsoft Graph Already Installed"
-} 
-else {
-    try {
-        Install-Module -Name Microsoft.Graph.Authentication -Repository PSGallery -Force 
-    }
-    catch [Exception] {
-        $_.message 
-    }
-}
+        if (Get-Module -ListAvailable -Name Microsoft.Graph.Authentication) {
+            Write-Verbose "Microsoft Graph already installed"
+        } 
+        else {
+            try {
+                Install-Module -Name Microsoft.Graph.Authentication -Repository PSGallery -Force 
+            }
+            catch [Exception] {
+                $_.message 
+            }
+        }
 
-        Write-Host "Connect to Graph!"
         #Connect to Graph
         if ($AppId -and $AppSecret -and $tenant) {
-
             $graph = Connect-ToGraph -Tenant $tenant -AppId $clientid -AppSecret $clientsecret
-            write-output "Graph Connection Established"
-            }
-            elseif ($bearer) {
-                $graph = Connect-ToGraph -bearer $bearer
-                write-output "Graph Connection Established"
-    
-            }
-            else {
-            ##Connect to Graph
-            
+        }
+        elseif ($Bearer) {
+            $graph = Connect-ToGraph -bearer $Bearer
+        }
+        else {
             $graph = Connect-ToGraph -Scopes "DeviceManagementApps.Read.All, DeviceManagementConfiguration.Read.All"
-            }
-        Write-Host "Connected to tenant $($graph.TenantId)"
+        }
 
         # Get a list of apps
         Write-Host "Getting list of apps"
@@ -798,13 +888,110 @@ else {
         $appsuri = "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps"
         $script:apps = getallpagination -url $appsuri
         
-
         # Get a list of policies (for certs)
         Write-Host "Getting list of policies"
         $configuri = "https://graph.microsoft.com/beta/deviceManagement/configurationPolicies"
         #$script:policies = Get-MgBetaDeviceManagementConfigurationPolicy -All
         $script:policies = getallpagination -url $configuri
 
+        # Get a list of platform scripts
+        Write-Host "Getting list of scripts"
+        $scriptsuri = "https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts"
+        #$script:policies = Get-MgBetaDeviceManagementConfigurationPolicy -All
+        $script:scripts = getallpagination -url $scriptsuri
+    }
+
+    # Process log files if needed
+    $script:useFile = $false
+    if ($File) {
+
+        Write-Host "Using contents of file: $File"
+        if (Test-Path "$($env:TEMP)\ESPStatus.tmp") {
+            Remove-Item "$($env:TEMP)\ESPStatus.tmp" -Recurse -Force
+        }
+        New-Item -Path "$($env:TEMP)\ESPStatus.tmp" -ItemType "directory" | Out-Null
+        $script:useFile = $true
+
+        # If using a CAB file, extract the needed files from it
+        if ((Split-Path $File -Extension) -ieq ".cab") {
+            $null = & expand.exe "$File" -F:* "$($env:TEMP)\ESPStatus.tmp\" 
+        }
+        else {
+            # If using a ZIP file, just extract the entire contents (not as easy to do selected files)
+            Expand-Archive -Path $File -DestinationPath "$($env:TEMP)\ESPStatus.tmp\"
+            # If this is an Intune diagnostics zip, the "real" logs are buried deeper.  If we can find them, extract them
+            $realFile = Get-ChildItem "$($env:TEMP)\ESPStatus.tmp" -Filter "*MDMDiagnostics*_cab" | Get-ChildItem
+            if ($realFile) {
+                # Expand them into the temp folder -- creates a bit of a mess, but it's a temporary mess...
+                $null = & expand.exe "$realFile" -F:* "$($env:TEMP)\ESPStatus.tmp\" 
+            }
+        }
+
+        # Get the hardware hash information
+        Get-ChildItem "$($env:TEMP)\ESPStatus.tmp" -Filter "*.csv" | ForEach-Object {
+            $csv = Get-Content $_.FullName | ConvertFrom-Csv
+            $hash = $csv.'Hardware Hash'
+        }
+
+        # Edit the path in the .reg file
+        $content = Get-Content -Path "$($env:TEMP)\ESPStatus.tmp\MdmDiagReport_RegistryDump.reg"
+        $content = $content -replace "\[HKEY_CURRENT_USER\\", "[HKEY_CURRENT_USER\ESPStatus.tmp\USER\"
+        $content = $content -replace "\[HKEY_LOCAL_MACHINE\\", "[HKEY_CURRENT_USER\ESPStatus.tmp\MACHINE\"
+        $content = $content -replace '^ "', '"'
+        $content = $content -replace '^ @', '@'
+        $content = $content -replace 'DWORD:', 'dword:'
+
+        $stream = [System.IO.StreamWriter] "$($env:TEMP)\ESPStatus.tmp\MdmDiagReport_Edited.reg"
+        $stream.WriteLine("Windows Registry Editor Version 5.00`n")
+        $content | ForEach-Object {
+            # Escape backslashes and quotes
+            $line = $_.Trim()
+            $textStart = $line.IndexOf("""=""") + 3
+            if ($textStart -gt 3) {
+                $textLen = $line.Length - $textStart
+                $toEdit = $line.Substring($textStart, $textLen - 1)
+                $toEdit = $toEdit.Replace('\', '\\')
+                $toEdit = $toEdit.Replace('"', '\"')
+                $line = "$($line.Substring(0, $textStart))$toEdit"""
+            }
+            # Append it to the file
+            # Write-Host $line
+            $stream.WriteLine($line)
+        }
+        $stream.Close()
+
+        # Remove the registry info if it exists
+        if (Test-Path "HKCU:\ESPStatus.tmp") {
+            Remove-Item -Path "HKCU:\ESPStatus.tmp" -Recurse -Force
+        }
+
+        # Import the .reg file
+        $null = & reg.exe IMPORT "$($env:TEMP)\ESPStatus.tmp\MdmDiagReport_Edited.reg" 2>&1
+
+        # Configure the (not live) constants
+        $script:provisioningPath = "HKCU:\ESPStatus.tmp\MACHINE\software\microsoft\provisioning"
+        $script:autopilotDiagPath = "HKCU:\ESPStatus.tmp\MACHINE\software\microsoft\provisioning\Diagnostics\Autopilot"
+        $script:omadmPath = "HKCU:\ESPStatus.tmp\MACHINE\software\microsoft\provisioning\OMADM"
+        $script:path = "HKCU:\ESPStatus.tmp\MACHINE\Software\Microsoft\Windows\Autopilot\EnrollmentStatusTracking\ESPTrackingInfo\Diagnostics"
+        $script:msiPath = "HKCU:\ESPStatus.tmp\MACHINE\Software\Microsoft\EnterpriseDesktopAppManagement"
+        $script:officePath = "HKCU:\ESPStatus.tmp\MACHINE\Software\Microsoft\OfficeCSP"
+        $script:sidecarPath = "HKCU:\ESPStatus.tmp\MACHINE\Software\Microsoft\IntuneManagementExtension"
+        $script:sidecarWin32Apps = "HKCU:\ESPStatus.tmp\MACHINE\Software\Microsoft\IntuneManagementExtension\Win32Apps"
+        $script:enrollmentsPath = "HKCU:\ESPStatus.tmp\MACHINE\software\microsoft\enrollments"
+    }
+    else {
+        # Configure live constants
+        $script:provisioningPath = "HKLM:\software\microsoft\provisioning"
+        $script:autopilotDiagPath = "HKLM:\software\microsoft\provisioning\Diagnostics\Autopilot"
+        $script:omadmPath = "HKLM:\software\microsoft\provisioning\OMADM"
+        $script:path = "HKLM:\Software\Microsoft\Windows\Autopilot\EnrollmentStatusTracking\ESPTrackingInfo\Diagnostics"
+        $script:msiPath = "HKLM:\Software\Microsoft\EnterpriseDesktopAppManagement"
+        $script:officePath = "HKLM:\Software\Microsoft\OfficeCSP"
+        $script:sidecarPath = "HKLM:\Software\Microsoft\IntuneManagementExtension"
+        $script:sidecarWin32Apps = "HKLM:\Software\Microsoft\IntuneManagementExtension\Win32Apps"
+        $script:enrollmentsPath = "HKLM:\Software\Microsoft\enrollments"
+
+        $hash = (Get-WmiObject -Namespace root/cimv2/mdm/dmmap -Class MDM_DevDetail_Ext01 -Filter "InstanceID='Ext' AND ParentID='./DevDetail'").DeviceHardwareData
     }
 
     # Display Autopilot diag details
@@ -812,125 +999,157 @@ else {
     Write-Host "AUTOPILOT DIAGNOSTICS" -ForegroundColor Magenta
     Write-Host ""
 
-    $values = Get-ItemProperty "$autopilotDiagPath"
-    if (-not $values.CloudAssignedTenantId) {
-        Write-Host "This is not an Autopilot device.`n"
-        exit 0
+    # Determine scenario
+    $script:AutopilotScenario = [AutopilotScenarioEnum]::Unknown
+    $correlations = Get-ItemProperty "$autopilotDiagPath\EstablishedCorrelations"
+    $values = Get-ItemProperty "$provisioningPath\AutopilotSettings"
+    if ($values.AutopilotDevicePrepHint -eq 0) {
+        $script:AutopilotScenario = [AutopilotScenarioEnum]::AutopilotV2
+        Write-Host "Scenario: Autopilot device preparation (v2)"
+        $settings = Get-ItemProperty -Path "$provisioningPath\AutopilotSettings\DevicePreparation"
+        $pageSettings = $settings.PageSettings | ConvertFrom-Json
+        # {"AgentDownloadTimeoutSeconds":1800,"PageTimeoutSeconds":3600,"ErrorMessage":"Contact your oganization's support person for help.","AllowSkipOnFailure":true,"AllowDiagnostics":true}
+        Write-Host "AgentDownloadTimeoutSeconds: $($pageSettings.AgentDownloadTimeoutSeconds)"
+        Write-Host "PageTimeoutSeconds: $($pageSettings.PageTimeoutSeconds)"
+        Write-Host "AllowSkipOnFailure: $($pageSettings.AllowSkipOnFailure)"
+        Write-Host "AllowDiagnostics: $($pageSettings.AllowDiagnostics)"
+
+        Get-ChildItem $enrollmentsPath | ForEach-Object {
+            $properties = Get-ItemProperty -Path $_.PSPath
+            if ($properties.ProviderId -eq "MS DM Server") {
+                Write-Host "TenantID: $($properties.AADTenantID)"
+                Write-Host "UPN: $($properties.UPN)"
+            }
+        }
+
+    } else {
+        $values = Get-ItemProperty "$autopilotDiagPath"
+        if ($values.CloudAssignedTenantId) {
+            if ($values.DeploymentProfileName -and $values.DeploymentProfileName -ne "") {
+                $script:AutopilotScenario = [AutopilotScenarioEnum]::AutopilotV1
+                Write-Host "Scenario: Autopilot (v1)"
+                Write-Host "Profile: $($values.DeploymentProfileName)"
+            } else {
+                $script:AutopilotScenario = [AutopilotScenarioEnum]::AutopilotJson
+                Write-Host "Scenario: Autopilot for existing devices (v1)"
+                Write-Host "Correlation ID: $($values.ZtdCorrelationId)"                
+            }
+            Write-Host "TenantDomain: $($values.CloudAssignedTenantDomain)"
+            Write-Host "TenantID: $($values.CloudAssignedTenantId)"
+            Write-Host "OobeConfig: $($values.CloudAssignedOobeConfig)"
+
+            if (($values.CloudAssignedOobeConfig -band 1024) -gt 0) {
+                Write-Host " Skip keyboard: Yes             1 - - - - - - - - - -"
+            }
+            else {
+                Write-Host " Skip keyboard: No              0 - - - - - - - - - -"
+            }
+            if (($values.CloudAssignedOobeConfig -band 512) -gt 0) {
+                Write-Host " Enable patch download: Yes     - 1 - - - - - - - - -"
+            }
+            else {
+                Write-Host " Enable patch download: No      - 0 - - - - - - - - -"
+            }
+            if (($values.CloudAssignedOobeConfig -band 256) -gt 0) {
+                Write-Host " Skip Windows upgrade UX: Yes   - - 1 - - - - - - - -"
+            }
+            else {
+                Write-Host " Skip Windows upgrade UX: No    - - 0 - - - - - - - -"
+            }
+            if (($values.CloudAssignedOobeConfig -band 128) -gt 0) {
+                Write-Host " AAD TPM Required: Yes          - - - 1 - - - - - - -"
+            }
+            else {
+                Write-Host " AAD TPM Required: No           - - - 0 - - - - - - -"
+            }
+            if (($values.CloudAssignedOobeConfig -band 64) -gt 0) {
+                Write-Host " AAD device auth: Yes           - - - - 1 - - - - - -"
+            }
+            else {
+                Write-Host " AAD device auth: No            - - - - 0 - - - - - -"
+            }
+            if (($values.CloudAssignedOobeConfig -band 32) -gt 0) {
+                Write-Host " TPM attestation: Yes           - - - - - 1 - - - - -"
+            }
+            else {
+                Write-Host " TPM attestation: No            - - - - - 0 - - - - -"
+            }
+            if (($values.CloudAssignedOobeConfig -band 16) -gt 0) {
+                Write-Host " Skip EULA: Yes                 - - - - - - 1 - - - -"
+            }
+            else {
+                Write-Host " Skip EULA: No                  - - - - - - 0 - - - -"
+            }
+            if (($values.CloudAssignedOobeConfig -band 8) -gt 0) {
+                Write-Host " Skip OEM registration: Yes     - - - - - - - 1 - - -"
+            }
+            else {
+                Write-Host " Skip OEM registration: No      - - - - - - - 0 - - -"
+            }
+            if (($values.CloudAssignedOobeConfig -band 4) -gt 0) {
+                Write-Host " Skip express settings: Yes     - - - - - - - - 1 - -"
+            }
+            else {
+                Write-Host " Skip express settings: No      - - - - - - - - 0 - -"
+            }
+            if (($values.CloudAssignedOobeConfig -band 2) -gt 0) {
+                Write-Host " Disallow admin: Yes            - - - - - - - - - 1 -"
+            }
+            else {
+                Write-Host " Disallow admin: No             - - - - - - - - - 0 -"
+            }
+
+            # In theory we could read these values from the profile cache registry key, but it's so bungled
+            # up in the registry export that it doesn't import without some serious massaging for embedded
+            # quotes. So this is easier.
+            if ($script:useFile) {
+                $jsonFile = "$($env:TEMP)\ESPStatus.tmp\AutopilotDDSZTDFile.json"
+            }
+            else {
+                $jsonFile = "$($env:WINDIR)\ServiceState\wmansvc\AutopilotDDSZTDFile.json" 
+            }
+            if (Test-Path $jsonFile) {
+                $json = Get-Content $jsonFile | ConvertFrom-Json
+                $date = [datetime]$json.PolicyDownloadDate
+                RecordStatus -date $date -detail "Autopilot profile" -status "Profile downloaded" -color "Yellow" 
+                if ($json.CloudAssignedDomainJoinMethod -eq 1) {
+                    Write-Host "Subscenarios: Hybrid Azure AD Join"
+                    if (Test-Path "$omadmPath\SyncML\ODJApplied") {
+                        Write-Host "ODJ applied: Yes"
+                    }
+                    else {
+                        Write-Host "ODJ applied: No"                
+                    }
+                    if ($json.HybridJoinSkipDCConnectivityCheck -eq 1) {
+                        Write-Host "Skip connectivity check: Yes"
+                    }
+                    else {
+                        Write-Host "Skip connectivity check: No"
+                    }
+
+                }
+                else {
+                    Write-Host "Subscenario: Azure AD Join"
+                }
+            }
+            else {
+                Write-Host "Subscenario: Not available (JSON not found)"
+            }
+
+        }
     }
 
     if (-not $script:useFile) {
         $osVersion = (Get-WmiObject win32_operatingsystem).Version
         Write-Host "OS version: $osVersion"
     }
-    Write-Host "Profile: $($values.DeploymentProfileName)"
-    Write-Host "TenantDomain: $($values.CloudAssignedTenantDomain)"
-    Write-Host "TenantID: $($values.CloudAssignedTenantId)"
-    $correlations = Get-ItemProperty "$autopilotDiagPath\EstablishedCorrelations"
-    Write-Host "ZTDID: $($correlations.ZTDRegistrationID)"
     Write-Host "EntDMID: $($correlations.EntDMID)"
 
-    Write-Host "OobeConfig: $($values.CloudAssignedOobeConfig)"
-
-    if (($values.CloudAssignedOobeConfig -band 1024) -gt 0) {
-        Write-Host " Skip keyboard: Yes 1 - - - - - - - - - -"
-    }
-    else {
-        Write-Host " Skip keyboard: No 0 - - - - - - - - - -"
-    }
-    if (($values.CloudAssignedOobeConfig -band 512) -gt 0) {
-        Write-Host " Enable patch download: Yes - 1 - - - - - - - - -"
-    }
-    else {
-        Write-Host " Enable patch download: No - 0 - - - - - - - - -"
-    }
-    if (($values.CloudAssignedOobeConfig -band 256) -gt 0) {
-        Write-Host " Skip Windows upgrade UX: Yes - - 1 - - - - - - - -"
-    }
-    else {
-        Write-Host " Skip Windows upgrade UX: No - - 0 - - - - - - - -"
-    }
-    if (($values.CloudAssignedOobeConfig -band 128) -gt 0) {
-        Write-Host " AAD TPM Required: Yes - - - 1 - - - - - - -"
-    }
-    else {
-        Write-Host " AAD TPM Required: No - - - 0 - - - - - - -"
-    }
-    if (($values.CloudAssignedOobeConfig -band 64) -gt 0) {
-        Write-Host " AAD device auth: Yes - - - - 1 - - - - - -"
-    }
-    else {
-        Write-Host " AAD device auth: No - - - - 0 - - - - - -"
-    }
-    if (($values.CloudAssignedOobeConfig -band 32) -gt 0) {
-        Write-Host " TPM attestation: Yes - - - - - 1 - - - - -"
-    }
-    else {
-        Write-Host " TPM attestation: No - - - - - 0 - - - - -"
-    }
-    if (($values.CloudAssignedOobeConfig -band 16) -gt 0) {
-        Write-Host " Skip EULA: Yes - - - - - - 1 - - - -"
-    }
-    else {
-        Write-Host " Skip EULA: No - - - - - - 0 - - - -"
-    }
-    if (($values.CloudAssignedOobeConfig -band 8) -gt 0) {
-        Write-Host " Skip OEM registration: Yes - - - - - - - 1 - - -"
-    }
-    else {
-        Write-Host " Skip OEM registration: No - - - - - - - 0 - - -"
-    }
-    if (($values.CloudAssignedOobeConfig -band 4) -gt 0) {
-        Write-Host " Skip express settings: Yes - - - - - - - - 1 - -"
-    }
-    else {
-        Write-Host " Skip express settings: No - - - - - - - - 0 - -"
-    }
-    if (($values.CloudAssignedOobeConfig -band 2) -gt 0) {
-        Write-Host " Disallow admin: Yes - - - - - - - - - 1 -"
-    }
-    else {
-        Write-Host " Disallow admin: No - - - - - - - - - 0 -"
-    }
-
-    # In theory we could read these values from the profile cache registry key, but it's so bungled
-    # up in the registry export that it doesn't import without some serious massaging for embedded
-    # quotes. So this is easier.
-    if ($script:useFile) {
-        $jsonFile = "$($env:TEMP)\ESPStatus.tmp\AutopilotDDSZTDFile.json"
-    }
-    else {
-        $jsonFile = "$($env:WINDIR)\ServiceState\wmansvc\AutopilotDDSZTDFile.json" 
-    }
-    if (Test-Path $jsonFile) {
-        $json = Get-Content $jsonFile | ConvertFrom-Json
-        $date = [datetime]$json.PolicyDownloadDate
-        RecordStatus -date $date -detail "Autopilot profile" -status "Profile downloaded" -color "Yellow" 
-        if ($json.CloudAssignedDomainJoinMethod -eq 1) {
-            Write-Host "Scenario: Hybrid Azure AD Join"
-            if (Test-Path "$omadmPath\SyncML\ODJApplied") {
-                Write-Host "ODJ applied: Yes"
-            }
-            else {
-                Write-Host "ODJ applied: No"                
-            }
-            if ($json.HybridJoinSkipDCConnectivityCheck -eq 1) {
-                Write-Host "Skip connectivity check: Yes"
-            }
-            else {
-                Write-Host "Skip connectivity check: No"
-            }
-
-        }
-        else {
-            Write-Host "Scenario: Azure AD Join"
-        }
-    }
-    else {
-        Write-Host "Scenario: Not available (JSON not found)"
-    }
-
     # Get ESP properties
-    Get-ChildItem $enrollmentsPath | ? { Test-Path "$($_.PSPath)\FirstSync" } | % {
+    Get-ChildItem $enrollmentsPath | Where-Object { Test-Path "$($_.PSPath)\FirstSync" } | % {
+        if ($script:AutopilotScenario -eq [AutopilotScenarioEnum]::Unknown) {
+            $script:AutopilotScenario = [AutopilotScenarioEnum]::EspOnly
+        }
         $properties = Get-ItemProperty "$($_.PSPath)\FirstSync"
         Write-Host "Enrollment status page:"
         Write-Host " Device ESP enabled: $($properties.SkipDeviceStatusPage -eq 0)"
@@ -967,7 +1186,7 @@ else {
         Write-Host "Delivery Optimization statistics:"
         Write-Host " Total bytes downloaded: $($stats.DownloadHttpBytes)"
         Write-Host " From peers: $($peerPct)% ($($stats.DownloadLanBytes))"
-        Write-host " From Connected Cache: $($ccPct)% ($($stats.DownloadCacheHostBytes))"
+        Write-Host " From Connected Cache: $($ccPct)% ($($stats.DownloadCacheHostBytes))"
     }
 
     # If the ADK is installed, get some key hardware hash info
@@ -995,76 +1214,89 @@ else {
         ProcessNodeCache | Format-Table -Wrap
     }
     
-    # Make sure the tracking path exists
-    if (Test-Path $path) {
+    if ($script:AutopilotScenario -eq [AutopilotScenarioEnum]::AutopilotV2) {
 
-        # Process device ESP sessions
+        # Process scripts
         Write-Host " "
-        Write-Host "DEVICE ESP:" -ForegroundColor Magenta
+        Write-Host "SCRIPTS:" -ForegroundColor Magenta
         Write-Host " "
+        ProcessSidecarV2Scripts
 
-        if (Test-Path "$path\ExpectedPolicies") {
-            [array]$items = Get-ChildItem "$path\ExpectedPolicies"
-            AddDisplay ([ref]$items)
-            $items | ProcessPolicies
-        }
-        if (Test-Path "$path\ExpectedMSIAppPackages") {
-            [array]$items = Get-ChildItem "$path\ExpectedMSIAppPackages"
-            AddDisplay ([ref]$items)
-            $items | ProcessApps -currentUser "S-0-0-00-0000000000-0000000000-000000000-000" 
-        }
-        if (Test-Path "$path\ExpectedModernAppPackages") {
-            [array]$items = Get-ChildItem "$path\ExpectedModernAppPackages"
-            AddDisplay ([ref]$items)
-            $items | ProcessModernApps -currentUser "S-0-0-00-0000000000-0000000000-000000000-000"
-        }
-        if (Test-Path "$path\Sidecar") {
-            [array]$items = Get-ChildItem "$path\Sidecar" | ? { $_.Property -match "./Device" -and $_.Name -notmatch "LastLoggedState" }
-            AddDisplay ([ref]$items)
-            $items | ProcessSidecar -currentUser "00000000-0000-0000-0000-000000000000"
-        }
-        if (Test-Path "$path\ExpectedSCEPCerts") {
-            [array]$items = Get-ChildItem "$path\ExpectedSCEPCerts"
-            AddDisplay ([ref]$items)
-            $items | ProcessCerts
-        }
+        # Process Win32 apps
+        Write-Host " "
+        Write-Host "APPS:" -ForegroundColor Magenta
+        Write-Host " "
+        ProcessSidecarV2
 
-        # Process user ESP sessions
-        Get-ChildItem "$path" | ? { $_.PSChildName.StartsWith("S-") } | % {
-            $userPath = $_.PSPath
-            $userSid = $_.PSChildName
+    } else {
+        # Make sure the tracking path exists
+        if (Test-Path $path) {
+
+            # Process device ESP sessions
             Write-Host " "
-            Write-Host "USER ESP for $($userSid):" -ForegroundColor Magenta
+            Write-Host "DEVICE ESP:" -ForegroundColor Magenta
             Write-Host " "
-            if (Test-Path "$userPath\ExpectedPolicies") {
-                [array]$items = Get-ChildItem "$userPath\ExpectedPolicies"
+
+            if (Test-Path "$path\ExpectedPolicies") {
+                [array]$items = Get-ChildItem "$path\ExpectedPolicies"
                 AddDisplay ([ref]$items)
                 $items | ProcessPolicies
             }
-            if (Test-Path "$userPath\ExpectedMSIAppPackages") {
-                [array]$items = Get-ChildItem "$userPath\ExpectedMSIAppPackages" 
+            if (Test-Path "$path\ExpectedMSIAppPackages") {
+                [array]$items = Get-ChildItem "$path\ExpectedMSIAppPackages"
                 AddDisplay ([ref]$items)
-                $items | ProcessApps -currentUser $userSid
+                $items | ProcessApps -currentUser "S-0-0-00-0000000000-0000000000-000000000-000" 
             }
-            if (Test-Path "$userPath\ExpectedModernAppPackages") {
-                [array]$items = Get-ChildItem "$userPath\ExpectedModernAppPackages"
+            if (Test-Path "$path\ExpectedModernAppPackages") {
+                [array]$items = Get-ChildItem "$path\ExpectedModernAppPackages"
                 AddDisplay ([ref]$items)
-                $items | ProcessModernApps -currentUser $userSid
+                $items | ProcessModernApps -currentUser "S-0-0-00-0000000000-0000000000-000000000-000"
             }
-            if (Test-Path "$userPath\Sidecar") {
-                [array]$items = Get-ChildItem "$path\Sidecar" | ? { $_.Property -match "./User" }
+            if (Test-Path "$path\Sidecar") {
+                [array]$items = Get-ChildItem "$path\Sidecar" | ? { $_.Property -match "./Device" -and $_.Name -notmatch "LastLoggedState" }
                 AddDisplay ([ref]$items)
-                $items | ProcessSidecar -currentUser $userSid
+                $items | ProcessSidecar -currentUser "00000000-0000-0000-0000-000000000000"
             }
-            if (Test-Path "$userPath\ExpectedSCEPCerts") {
-                [array]$items = Get-ChildItem "$userPath\ExpectedSCEPCerts"
+            if (Test-Path "$path\ExpectedSCEPCerts") {
+                [array]$items = Get-ChildItem "$path\ExpectedSCEPCerts"
                 AddDisplay ([ref]$items)
                 $items | ProcessCerts
             }
+
+            # Process user ESP sessions
+            Get-ChildItem "$path" | ? { $_.PSChildName.StartsWith("S-") } | % {
+                $userPath = $_.PSPath
+                $userSid = $_.PSChildName
+                Write-Host " "
+                Write-Host "USER ESP for $($userSid):" -ForegroundColor Magenta
+                Write-Host " "
+                if (Test-Path "$userPath\ExpectedPolicies") {
+                    [array]$items = Get-ChildItem "$userPath\ExpectedPolicies"
+                    AddDisplay ([ref]$items)
+                    $items | ProcessPolicies
+                }
+                if (Test-Path "$userPath\ExpectedMSIAppPackages") {
+                    [array]$items = Get-ChildItem "$userPath\ExpectedMSIAppPackages" 
+                    AddDisplay ([ref]$items)
+                    $items | ProcessApps -currentUser $userSid
+                }
+                if (Test-Path "$userPath\ExpectedModernAppPackages") {
+                    [array]$items = Get-ChildItem "$userPath\ExpectedModernAppPackages"
+                    AddDisplay ([ref]$items)
+                    $items | ProcessModernApps -currentUser $userSid
+                }
+                if (Test-Path "$userPath\Sidecar") {
+                    [array]$items = Get-ChildItem "$path\Sidecar" | ? { $_.Property -match "./User" }
+                    AddDisplay ([ref]$items)
+                    $items | ProcessSidecar -currentUser $userSid
+                }
+                if (Test-Path "$userPath\ExpectedSCEPCerts") {
+                    [array]$items = Get-ChildItem "$userPath\ExpectedSCEPCerts"
+                    AddDisplay ([ref]$items)
+                    $items | ProcessCerts
+                }
+            }
         }
-    }
-    else {
-        Write-Host "ESP diagnostics info does not (yet) exist."
     }
 
     # Display timeline
@@ -1096,10 +1328,14 @@ else {
 }
 
 End {
-
     # Remove the registry info if it exists
     if (Test-Path "HKCU:\ESPStatus.tmp") {
         Remove-Item -Path "HKCU:\ESPStatus.tmp" -Recurse -Force
+    }
+
+    # Remove the temp folder info if it exists
+    if (Test-Path "$($env:TEMP)\ESPStatus.tmp") {
+        Remove-Item "$($env:TEMP)\ESPStatus.tmp" -Recurse -Force
     }
 }
 
