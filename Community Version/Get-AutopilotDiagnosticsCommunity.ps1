@@ -1,7 +1,7 @@
 
 <#PSScriptInfo
 
-.VERSION 6.1
+.VERSION 6.2
 .GUID b45605b6-65aa-45ec-a23c-f5291f9fb519
 .AUTHOR AndrewTaylor, Michael Niehaus & Steven van Beek
 .COMPANYNAME
