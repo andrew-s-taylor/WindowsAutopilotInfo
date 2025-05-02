@@ -14,6 +14,7 @@
 .REQUIREDSCRIPTS
 .EXTERNALSCRIPTDEPENDENCIES
 .RELEASENOTES
+Version 6.2: Bug fixes.
 Version 6.1: Bug fixes.
 Verison 6.0: Added APv2 support and various other enhancements
 Version 5.14: Added auto-install of Graph modules
