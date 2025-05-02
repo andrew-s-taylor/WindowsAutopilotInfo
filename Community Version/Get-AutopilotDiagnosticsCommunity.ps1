@@ -1236,28 +1236,38 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
 
             if (Test-Path "$path\ExpectedPolicies") {
                 [array]$items = Get-ChildItem "$path\ExpectedPolicies"
-                AddDisplay ([ref]$items)
-                $items | ProcessPolicies
+                if ($items) {
+                    AddDisplay ([ref]$items)
+                    $items | ProcessPolicies
+                }
             }
             if (Test-Path "$path\ExpectedMSIAppPackages") {
                 [array]$items = Get-ChildItem "$path\ExpectedMSIAppPackages"
-                AddDisplay ([ref]$items)
-                $items | ProcessApps -currentUser "S-0-0-00-0000000000-0000000000-000000000-000" 
+                if ($items) {
+                    AddDisplay ([ref]$items)
+                    $items | ProcessApps -currentUser "S-0-0-00-0000000000-0000000000-000000000-000" 
+                }
             }
             if (Test-Path "$path\ExpectedModernAppPackages") {
                 [array]$items = Get-ChildItem "$path\ExpectedModernAppPackages"
-                AddDisplay ([ref]$items)
-                $items | ProcessModernApps -currentUser "S-0-0-00-0000000000-0000000000-000000000-000"
+                if ($items) {
+                    AddDisplay ([ref]$items)
+                    $items | ProcessModernApps -currentUser "S-0-0-00-0000000000-0000000000-000000000-000"
+                }
             }
             if (Test-Path "$path\Sidecar") {
                 [array]$items = Get-ChildItem "$path\Sidecar" | ? { $_.Property -match "./Device" -and $_.Name -notmatch "LastLoggedState" }
-                AddDisplay ([ref]$items)
-                $items | ProcessSidecar -currentUser "00000000-0000-0000-0000-000000000000"
+                if ($items) {
+                    AddDisplay ([ref]$items)
+                    $items | ProcessSidecar -currentUser "00000000-0000-0000-0000-000000000000"
+                }
             }
             if (Test-Path "$path\ExpectedSCEPCerts") {
                 [array]$items = Get-ChildItem "$path\ExpectedSCEPCerts"
-                AddDisplay ([ref]$items)
-                $items | ProcessCerts
+                if ($items) {
+                    AddDisplay ([ref]$items)
+                    $items | ProcessCerts
+                }
             }
 
             # Process user ESP sessions
@@ -1269,28 +1279,38 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
                 Write-Host " "
                 if (Test-Path "$userPath\ExpectedPolicies") {
                     [array]$items = Get-ChildItem "$userPath\ExpectedPolicies"
-                    AddDisplay ([ref]$items)
-                    $items | ProcessPolicies
+                    if ($items) {
+                        AddDisplay ([ref]$items)
+                        $items | ProcessPolicies
+                    }
                 }
                 if (Test-Path "$userPath\ExpectedMSIAppPackages") {
                     [array]$items = Get-ChildItem "$userPath\ExpectedMSIAppPackages" 
-                    AddDisplay ([ref]$items)
-                    $items | ProcessApps -currentUser $userSid
+                    if ($items) {
+                        AddDisplay ([ref]$items)
+                        $items | ProcessApps -currentUser $userSid
+                    }
                 }
                 if (Test-Path "$userPath\ExpectedModernAppPackages") {
                     [array]$items = Get-ChildItem "$userPath\ExpectedModernAppPackages"
-                    AddDisplay ([ref]$items)
-                    $items | ProcessModernApps -currentUser $userSid
+                    if ($items) {
+                        AddDisplay ([ref]$items)
+                        $items | ProcessModernApps -currentUser $userSid
+                    }
                 }
                 if (Test-Path "$userPath\Sidecar") {
                     [array]$items = Get-ChildItem "$path\Sidecar" | ? { $_.Property -match "./User" }
-                    AddDisplay ([ref]$items)
-                    $items | ProcessSidecar -currentUser $userSid
+                    if ($items) {
+                        AddDisplay ([ref]$items)
+                        $items | ProcessSidecar -currentUser $userSid
+                    }
                 }
                 if (Test-Path "$userPath\ExpectedSCEPCerts") {
                     [array]$items = Get-ChildItem "$userPath\ExpectedSCEPCerts"
-                    AddDisplay ([ref]$items)
-                    $items | ProcessCerts
+                    if ($items) {
+                        AddDisplay ([ref]$items)
+                        $items | ProcessCerts
+                    }
                 }
             }
         }
