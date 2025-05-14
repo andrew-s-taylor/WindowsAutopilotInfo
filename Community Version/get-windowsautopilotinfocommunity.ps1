@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 5.0.8
+.VERSION 5.0.9
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -41,6 +41,7 @@ v5.0.5 - Groups fix
 v5.0.6 - Don't display Entra ID token; don't prompt if -Force is specified
 v5.0.7 - Re-written update/delete to stop grabbing all devices
 v5.0.8 - Added certificate authentication
+v5.0.9 - Another groups fix, use name instead of ID for lookup
 #>
 
 <#
@@ -113,7 +114,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        5.0.7
+Version:        5.0.9
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -2457,7 +2458,7 @@ End {
         if ($AddToGroup) {
             foreach ($ADGroup in $AddToGroup) {
                 #$aadGroup = Get-MgGroup -Filter "DisplayName eq '$ADGroup'"
-                $guri = "https://graph.microsoft.com/beta/groups?`$filter=id eq '$ADGroup'"
+                $guri = "https://graph.microsoft.com/beta/groups?`$filter=displayName eq '$ADGroup'"
                 $aadGroup = (Invoke-MgGraphRequest -Uri $guri -Method GET -OutputType PSObject).value
                 if ($aadGroup) {
                     $autopilotDevices | ForEach-Object {
@@ -2571,8 +2572,8 @@ End {
 # SIG # Begin signature block
 # MIIoEwYJKoZIhvcNAQcCoIIoBDCCKAACAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBLoKgE13cT5lEQ
-# /jMuwgudfIrNivw/c/PstGxPGrIRrKCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAQn4fEilQmWLVr
+# BLAbL8M8eoYhw6iyFIOKb4k9zYkUFKCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2754,33 +2755,33 @@ End {
 # IFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDpMA0GCWCG
 # SAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcN
 # AQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUw
-# LwYJKoZIhvcNAQkEMSIEIDFslReA1WnReAAqflyBThcFOq5HU0xfH6jBPH0/0ibr
-# MA0GCSqGSIb3DQEBAQUABIICAAi1LY62j2WiBecZ54OVIBtG+vt/fq/upVI+mK4M
-# jlBaz//fdKbGUEiQ+9FEHS7LVU0HtI/7sjMxe+FppBBod/kMyj0zZnYGZhMAsQzC
-# f4UnFYrB16JwKAxg8gsFmq2atRE9tc33zjr1J2dk+CnH9lO+ZYwC86TeH1t+1Jrv
-# A0TmSeRZMxuBMEF/wmw/hac7IlIBwCI3WsIMCUki9FOkNwqJj6Q8V/zfSBB7xE6C
-# 6oBWziiXBH5wbesbqaF7oaUeA4XprpDBPVNJDcsJuYN6fsbcoBkcsTS1RQTUoqoh
-# WEcw1tZpNdpnQIZqEO28VZOzattfmv4Y61pVLkcVI8uNJ0UxXrX29MCRTnS5uwIg
-# jWnkpIGSXMcrHr/us8EgfKln5Q49orZG1fE46dcPLWAlzhzxPMAoJj8jbbp5nNf5
-# SIoRp1DI5Qd0ggtOrsARyakJpjgCMsf+6+vh+VEOYVfg8dYMN4s5Sm/CxnvAWv8M
-# SBTzTvxwOcB6+Y+0TnWrNLkS/ULb0b6SrKmjFmPmojsZufIR811Txxt4MClLGVub
-# 3qzJcpC330uVX3a5jL63V4+ddIjfIJNXqFBHdOd7UfQ5Phng+8LCQdBhpBKYlrCe
-# /tkVGn834DXUm/hmk3vwpaHmkUJHpdCbf8WnY5fToCo3XkAar7E96eCm+5zfz2g2
-# eVr0oYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
+# LwYJKoZIhvcNAQkEMSIEIFp0QCLSGy3u/aFKEEqbqC99PJLPrfnBxOWRXqSy+jZc
+# MA0GCSqGSIb3DQEBAQUABIICAEd1isgSiO5hMmqfWYRA1oZv2ayFcroFgpYGUopB
+# E5cOCh+jjy164QHu7/UfnHRucmHmTJvxXY57Wns87lvP6zSOvYHP/YN73TPnxkN7
+# Fo/yYVCb/uCI8vLDIYGsQoO3DuTtPONREKvKUwbKZzapgQqptv5pIQd+8Ekw609+
+# sxXhDxNgxe5Iri/X+s6CBybyBO4Hm5XpPE4TyiuLHB4efiqGbKhvCB4Hio1zVP5s
+# j2yOBKigzndODciKvaQb+98ZNo9J7e6nBa/skuW2Ad+pqRaa763dNFfX3JWlR+0P
+# yZLLxBIhfswkl6eivqPx3Nyqq19skrXAj3tfsrwVLqSHOdHZdu3H8eh4VqgQ/Yjg
+# YA0MWSSoQrefkPk6XlJELbNJF0EDE8bW9sr9Lf6xJTnapHmbdRwdNEC5lu3E7buZ
+# V4QtzHSxd7aGvKtWbKE8vCDGWv4EnwuVZ7JT0qMNNaQshhKPXU5oCGSsKbMCqaVw
+# 6YsNY6AERZg9U6CNFZUhpaxM/HWTh9kSbF63TsNu+r7creecpIX6w8jbNL+qZfMc
+# 81yBiqLOVnfk4HQ6w9Gu1WQaUqspm6BNdK6zvIBo7lOpKKVWut/j7uKeEGcoZsi5
+# CSYihAIuEEyUy+0HXde0SaKiWKRYy0650B9dxOFs2iQhAsnC/QTBrCnq0kPYg5QF
+# xos9oYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
 # VVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBU
 # cnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQC65mvFq6
 # f5WHxvnpBOMzBDANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzELBgkqhkiG
-# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDQzMDE5NDgzOVowLwYJKoZIhvcNAQkE
-# MSIEIGIavp8wRByZmfprdAeN6eJQD+7hZqI2Mz4PMfn6v/zzMA0GCSqGSIb3DQEB
-# AQUABIICACJvPuzX0+9g//lYJ3ymV2yqMn78TJb6iRHmuZpCYvBmxWGCjMHamEvn
-# lDBXPOS7MXTERxXThpAiEMH92sn1bafgSARBP6ss+XtIYJjYVlvJ1VvoNxpx24X8
-# 1GnBxLNCePp7hF0vsX8RZjsgk6Vv/2arHcIl5+2mJp1qMMitNUF9nCq4bpzc1r19
-# 5Z+J2PKat+duAQqdMhYMhKwdmVQV+xDO/qwCa/PNX51I7ESD+ohg2BtcfbLOTdFx
-# p0Spy8EmCaUiRpC1SMjvu/n6FZli++ZWR2qkt6UzzBfBKu2nE8toorOs4p5ZSDVI
-# 847xfsxLAwLMgMN67KFsLlosaUIgy4krkR8DT9U3G2Yw+iFCKfFWIAToI1xYVo51
-# CU5UGh822fFYv8+A1wTs1vMMUVPP6x6QVnJTvOWRkgxXiIsPieEhWn/LQF+YyWwo
-# 5ffgYO01lefeDIVX9Z6z/w4Ci9NUt4jGchArfRWDHycqWZWmNE9RWr1PL9hA+I8c
-# duOORY5gARiWYqDch1wLwbbGaQoLoJMO222U3HR1GDRyhTn9WslBHuYs5IWF6n+W
-# nEcS5dX6UvBdPXMmcWgZCpEkH+jtnCjLM5ABt+rYckPLkNgNNTMeaD6vGhTYQBcS
-# v0iOI+WcfUmCODZeauIrfXtOLRUvM2etJGaXg4G+rugIUVPk3ZFn
+# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDUxNDE1MjA1NVowLwYJKoZIhvcNAQkE
+# MSIEIAB9h3ysdGpdkl8vGnwvVhn+6QKDUYW+QQq0RpbZ1HMeMA0GCSqGSIb3DQEB
+# AQUABIICAAPBzEC1VFzVcZnEEwaLUfAY64FqwCQ0t91fH7QYG/j4YTbMmDzBVfiD
+# lhwSixrTbBEaKb88rCd8czcxQLUkKclwjUFMmxJyvRQ3U8p5ZIy7beHxshB/b2be
+# Cer1nBF51AxmMiM+AH1uysNq/vTLhPTLA2JXmK/vvhrbRD/t/Kob3RQmx1ZWUzkt
+# MkWfquvLyANE1+OPJZDW0e/pAwNv43W1X3q3NriueA+cuD1oOT1HhFGIObZGdAZ/
+# Nmk5k2sGHk4fcF7e6U7gLdqjRye3X1lM43RHpfkAKsDF+vLfuCBqNz8kINlCY74W
+# cPnrKELHxx+zPF/sKEeJ/aeps6Ddkb1n43HBwFmQDQp4pICuRh3zE3fouZOZIMqH
+# bGEZdv6M20jR7RyjV/uRWeP88khi66ga5IWPlzbP/bLNZlM1VfGNbO4qF3vmYWUE
+# 7Dna2UHzbEGJYGJUGBcsP+/Jqhc97ahVmX8691NNkffnX1cEMJ9s3qO6fbf3Sa+o
+# dxLUMO8nKTDTTIm1O0tFUDaP9UZJurnruPlpeltEmvbQYral941ew3214aUOalQo
+# DgfglsfRSbKz2Rr1xMrAuA48t7QgETxjLb7rRVUYCNQrQ7nxvFYJ5as+6vrzQCgl
+# PM5ZesOXkgr5IvyiYlSNayHyi8Bw47S8jV0FGyphKCJjrUQPgmlr
 # SIG # End signature block
