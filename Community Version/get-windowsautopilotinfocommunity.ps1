@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 5.0.9
+.VERSION 5.0.10
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -42,6 +42,7 @@ v5.0.6 - Don't display Entra ID token; don't prompt if -Force is specified
 v5.0.7 - Re-written update/delete to stop grabbing all devices
 v5.0.8 - Added certificate authentication
 v5.0.9 - Another groups fix, use name instead of ID for lookup
+v5.0.10 - Removed an unused variable to trigger error for devices in another tenant
 #>
 
 <#
@@ -114,7 +115,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        5.0.9
+Version:        5.0.10
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -2247,7 +2248,7 @@ End {
                     $exists = check-importeddevice -manufacturer $manufacturer -model $model -serial $serial
                     if ($exists -eq $false) {
                         write-host "Device $serial does not exist in AutoPilot, adding it"
-                        $import = import-deviceidentifier -manufacturer $manufacturer -model $model -serial $serial
+                        import-deviceidentifier -manufacturer $manufacturer -model $model -serial $serial
                         write-host "Device $serial added to AutoPilot"
                     }
                     else {
@@ -2572,8 +2573,8 @@ End {
 # SIG # Begin signature block
 # MIIoEwYJKoZIhvcNAQcCoIIoBDCCKAACAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAQn4fEilQmWLVr
-# BLAbL8M8eoYhw6iyFIOKb4k9zYkUFKCCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCA4vLyyDjyBOhDD
+# G6cd6/9HbARuJ1EQo6+nH5U/LBwcz6CCIRYwggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2755,33 +2756,33 @@ End {
 # IFJTQTQwOTYgU0hBMzg0IDIwMjEgQ0ExAhAIsZ/Ns9rzsDFVWAgBLwDpMA0GCWCG
 # SAFlAwQCAQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcN
 # AQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUw
-# LwYJKoZIhvcNAQkEMSIEIFp0QCLSGy3u/aFKEEqbqC99PJLPrfnBxOWRXqSy+jZc
-# MA0GCSqGSIb3DQEBAQUABIICAEd1isgSiO5hMmqfWYRA1oZv2ayFcroFgpYGUopB
-# E5cOCh+jjy164QHu7/UfnHRucmHmTJvxXY57Wns87lvP6zSOvYHP/YN73TPnxkN7
-# Fo/yYVCb/uCI8vLDIYGsQoO3DuTtPONREKvKUwbKZzapgQqptv5pIQd+8Ekw609+
-# sxXhDxNgxe5Iri/X+s6CBybyBO4Hm5XpPE4TyiuLHB4efiqGbKhvCB4Hio1zVP5s
-# j2yOBKigzndODciKvaQb+98ZNo9J7e6nBa/skuW2Ad+pqRaa763dNFfX3JWlR+0P
-# yZLLxBIhfswkl6eivqPx3Nyqq19skrXAj3tfsrwVLqSHOdHZdu3H8eh4VqgQ/Yjg
-# YA0MWSSoQrefkPk6XlJELbNJF0EDE8bW9sr9Lf6xJTnapHmbdRwdNEC5lu3E7buZ
-# V4QtzHSxd7aGvKtWbKE8vCDGWv4EnwuVZ7JT0qMNNaQshhKPXU5oCGSsKbMCqaVw
-# 6YsNY6AERZg9U6CNFZUhpaxM/HWTh9kSbF63TsNu+r7creecpIX6w8jbNL+qZfMc
-# 81yBiqLOVnfk4HQ6w9Gu1WQaUqspm6BNdK6zvIBo7lOpKKVWut/j7uKeEGcoZsi5
-# CSYihAIuEEyUy+0HXde0SaKiWKRYy0650B9dxOFs2iQhAsnC/QTBrCnq0kPYg5QF
-# xos9oYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
+# LwYJKoZIhvcNAQkEMSIEIPtTWr3sYTzc4UwmVVToXIvinJC2iJRefxkvIffsivHb
+# MA0GCSqGSIb3DQEBAQUABIICAHvf24qv8Vtq3Z5dU9FYwrx+zhnlWJY9ynLmPTFV
+# s2bQkQvWhuTiNr5ePkPlTaRMR/HMtD192wT/+Y7M2Vxt83jwJJk8cSi6DXF03qQZ
+# Qk5BwoCwgilMaf4JiI8j41eNaqS3ADUcueeIGjZeGj1F3hSnO8UYBvI0vBBA0u7z
+# 4j/CDflOQWoN7iDPM8SxxKfZ7Sis7DEsz9BBhTY6KZobdu65TZHIb2RKv9+xNpu5
+# eBwVsnfaG7tlOXCeUjQx69KZA/mKVzgWhJd+7iCll7EpNOa/VmIuGkz6ZNJLAO7n
+# hCXg7VzYaZJglArf8iPdQ5yIzriHaeS047YtWASG2d/JuGDcDAnj2L3Dl2o3YIKx
+# 2pQTkr3Z8680mIwG2k2F8URUExALbScSeJxzpn4tbk5zxAORJz2DGxBB/RAZqmI8
+# iS51GRm/fFnIJbNnlJsE6RPB7LJWMIozus9oLsfD6GsfaDOtrTh9vhtY67Ew4BrA
+# R4gNZjKqQx3AzHkXk+Gyr5Jm33WUheGbyGncZ0a9RH89IWYT4Bremc9uamkNQBPg
+# rybZJiE/whg9P5PvzZ7IU6kOI4FoFhfQL9wcpFrQc/R+wRpBuabiNjxSNPFI92Gx
+# pd29SEQFNZDXWt1vOKS/RDKcmtMU0o1jIc7pzy6tkDEn2TsALwjcBTuOMhygl0GZ
+# 4APNoYIDIDCCAxwGCSqGSIb3DQEJBjGCAw0wggMJAgEBMHcwYzELMAkGA1UEBhMC
 # VVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBU
 # cnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQC65mvFq6
 # f5WHxvnpBOMzBDANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzELBgkqhkiG
-# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDUxNDE1MjA1NVowLwYJKoZIhvcNAQkE
-# MSIEIAB9h3ysdGpdkl8vGnwvVhn+6QKDUYW+QQq0RpbZ1HMeMA0GCSqGSIb3DQEB
-# AQUABIICAAPBzEC1VFzVcZnEEwaLUfAY64FqwCQ0t91fH7QYG/j4YTbMmDzBVfiD
-# lhwSixrTbBEaKb88rCd8czcxQLUkKclwjUFMmxJyvRQ3U8p5ZIy7beHxshB/b2be
-# Cer1nBF51AxmMiM+AH1uysNq/vTLhPTLA2JXmK/vvhrbRD/t/Kob3RQmx1ZWUzkt
-# MkWfquvLyANE1+OPJZDW0e/pAwNv43W1X3q3NriueA+cuD1oOT1HhFGIObZGdAZ/
-# Nmk5k2sGHk4fcF7e6U7gLdqjRye3X1lM43RHpfkAKsDF+vLfuCBqNz8kINlCY74W
-# cPnrKELHxx+zPF/sKEeJ/aeps6Ddkb1n43HBwFmQDQp4pICuRh3zE3fouZOZIMqH
-# bGEZdv6M20jR7RyjV/uRWeP88khi66ga5IWPlzbP/bLNZlM1VfGNbO4qF3vmYWUE
-# 7Dna2UHzbEGJYGJUGBcsP+/Jqhc97ahVmX8691NNkffnX1cEMJ9s3qO6fbf3Sa+o
-# dxLUMO8nKTDTTIm1O0tFUDaP9UZJurnruPlpeltEmvbQYral941ew3214aUOalQo
-# DgfglsfRSbKz2Rr1xMrAuA48t7QgETxjLb7rRVUYCNQrQ7nxvFYJ5as+6vrzQCgl
-# PM5ZesOXkgr5IvyiYlSNayHyi8Bw47S8jV0FGyphKCJjrUQPgmlr
+# 9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTI1MDUyMjA3MTQyMVowLwYJKoZIhvcNAQkE
+# MSIEIOPKNn1baZOWxkvK/gB+gbMUWiDKkqv3fD57kJfYsANcMA0GCSqGSIb3DQEB
+# AQUABIICAKO/TggKqcWZhwkx0e9CwC2T9/Kq4YNKAvoQAaAOpqX59b4WvtUtYKE7
+# 4+qCPnH63wz4s3doEr9q+Tj9VzuLvo31PuvFm4XO+if/njhnkxX18JBzU6vhCQb4
+# 09dCKvUkpLzhDxkQ1gKcCx4T28sUEjuWDrJKFuvy5U+ArgiUxhqL+yPHNoYFbys9
+# I2axGi/6Xg5HaCimSW5BoFIsBx/tlc8g6HPSacHjuEvEWEGCgw2Yb17Gbd1J+EQc
+# ax1cSaabBTxhsnqZmAjJYeh/eYj2Or09KFIX/Kwwktahf4Gjsy9VN1S83Z3l3MIz
+# kYCHCoAfSCK0BkcmTLL83wR/deQLYk8uqnIgwfcxkf76wGMtx0vrv6fOrK509Blf
+# 4R75xGY5WDWOSf/jKHizRbdT7w6ORE0+v2ef/kHttRkpqr8b+Lap+gRvnWQK0qdK
+# MrZKrvCE7XV2sfTWHVcfA2u61nMHK9aUktfZC5Akec362toCYK0M8IopAQsMUQ/b
+# GiDfRBBSRs2ahnswfA/LIHfARn+EmiC23soEfsT9pTT8DS3KjB8ahWwOTK5QaAGC
+# VND8mlHCssyuX0x5jE0DbwhmynfAVtB6xtcqu9TbJZI2dc0/tMZuGAm6gY3pFJad
+# RAkPY0AjdDbtFO1oZLsfDXOAigYXfEbfamtEXkxd58p6jn0zQ3n3
 # SIG # End signature block
