@@ -484,7 +484,7 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
                             RecordStatus -detail $_.FriendlyName -status $status -color "Red" -date $_.EndTime
                         } else {
                             if ($display) { Write-Host " $($_.FriendlyName) : $status" -ForegroundColor Yellow }
-                            RecordStatus -detail $_.FriendlyName -status $status -color "Yellow" -date $_.EndTime
+                            RecordStatus -detail $_.FriendlyName -status $status -color "Yellow" -date $_.StartTime
                         }
 
                         # Try to find the DO events.
@@ -999,9 +999,15 @@ Connect-ToGraph -TenantId $tenantID -AppId $app -AppSecret $secret
 
     # Determine scenario
     $script:AutopilotScenario = [AutopilotScenarioEnum]::Unknown
-    $correlations = Get-ItemProperty "$autopilotDiagPath\EstablishedCorrelations"
-    $values = Get-ItemProperty "$provisioningPath\AutopilotSettings"
-    if ($values.AutopilotDevicePrepHint -eq 0) {
+    if (Test-Path "$autopilotDiagPath\EstablishedCorrelations" )
+    {
+        $correlations = Get-ItemProperty "$autopilotDiagPath\EstablishedCorrelations"
+    }
+    if (Test-Path "$provisioningPath\AutopilotSettings" )
+    {
+        $values = Get-ItemProperty "$provisioningPath\AutopilotSettings"
+    }
+    if ($null -ne $values.AutopilotDevicePrepHint) {
         $script:AutopilotScenario = [AutopilotScenarioEnum]::AutopilotV2
         Write-Host "Scenario: Autopilot device preparation (v2)"
         $settings = Get-ItemProperty -Path "$provisioningPath\AutopilotSettings\DevicePreparation"
