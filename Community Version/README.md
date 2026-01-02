@@ -6,6 +6,6 @@ Can be installed from the PowerShell gallery
 
 This is a community project, forks, pull requests and suggestions are most welcome!
 
-https://www.powershellgallery.com/packages/get-windowsautopilotinfocommunity/1.0.0
+https://www.powershellgallery.com/packages/get-windowsautopilotinfocommunity/
 
-https://www.powershellgallery.com/packages/WindowsAutopilotIntuneCommunity/1.0
+https://www.powershellgallery.com/packages/WindowsAutopilotIntuneCommunity/
