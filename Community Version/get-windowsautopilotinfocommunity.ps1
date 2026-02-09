@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 5.0.11
+.VERSION 5.0.12
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -44,6 +44,7 @@ v5.0.8 - Added certificate authentication
 v5.0.9 - Another groups fix, use name instead of ID for lookup
 v5.0.10 - Removed an unused variable to trigger error for devices in another tenant
 v5.0.11 - Added new permissions
+v5.0.12 - WAM fix
 #>
 
 <#
@@ -2058,12 +2059,15 @@ Invoke-MgGraphRequest -Uri $uri -Method Post -Body $json -OutputType PSObject
 
         # Connect
         if (($AppId -ne "") -and ($AppSecret -ne "")) {
+            Set-MgGraphOption -DisableLoginByWAM $true
             Connect-ToGraph -AppId $AppId -AppSecret $AppSecret -Tenant $TenantId | Out-Null
         }
         elseif ($CertificateThumbprint -ne "") {
             Connect-ToGraph -AppId $AppId -CertificateThumbprint $CertificateThumbprint -Tenant $TenantId | Out-Null
         }
         else {
+            ##Disable WAM
+            setx MSAL_FORCE_WAM 0 
             $graph = Connect-ToGraph -scopes "Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, DeviceManagementScripts.ReadWrite.All"
             Write-Host "Connected to Intune tenant $($graph.TenantId)"
             if ($AddToGroup) {
@@ -2568,14 +2572,23 @@ End {
         }
     }
 }
+
+##Re-enable WAM
+setx MSAL_FORCE_WAM 1
+
 }
 
+
+
+
+
+##Script ends
 
 # SIG # Begin signature block
 # MIIoUAYJKoZIhvcNAQcCoIIoQTCCKD0CAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCcaMK35qhLT7u/
-# CqtShAVBreq3E45zpeNlkgmjUkqBeKCCIU0wggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCC/PQiZpgQuRW/D
+# 9+nC9+4YZ7/i0zhm3VOJmyfrTLQrIaCCIU0wggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2758,34 +2771,34 @@ End {
 # U2lnbmluZyBSU0E0MDk2IFNIQTM4NCAyMDIxIENBMQIQCLGfzbPa87AxVVgIAS8A
 # 6TANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkG
 # CSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEE
-# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCBXnZrI5CXLaeQ9RflI37eQHnKXM0bKK7vd
-# KPEqi0ckQTANBgkqhkiG9w0BAQEFAASCAgBwnEb5OXL5rb03y9SNSnDq7xIJ8b9F
-# g3oslSEjut5nxqzW6HXgJB1ZQeJKtU+4xZP2TWJRPFlr2cV1tf7WkzZbTSCh5KM9
-# lEXYK2eYQXYL3CqndeWFXr7TIPmu6+djf/xcYGuJJCTX0/zWmjCVQAokU+GIWV1u
-# oPFQtjCFeA9kYWG10yOUiiP3wxAkxdHRT2oRZKuD+0+W9YI61tHlAhHz0R9hiXfD
-# xSpRRm7WJTTg6sPGH6xGHJ45tLybaHJhDbnTL8E3inUAbUPsPg5PtVjlYF3/0Bt0
-# BYFsICkUicWDxKXLoyvzyUCSmFPDN6n4nyfqQmX9pDs+VfPyZoAFmL5U0vDxPoBu
-# MLv2QJuDKRBa3xKIGf4gZ56+QkWpj4CJjMlwqvUOJR3wFWEVUC7OOBNWZZa/UXdp
-# embLlmkflZwLQaXVXaFdZqM+Dw4nhQg5l0/DvIQpVzKNRvAPxNy6R4+OXDdnFS0i
-# Wf833c6p26oy2oMhQdtq6L30skC4DF+JcWeLvLyxGmtLHEztwDAZ48UpGeAUKe//
-# yHecsBeye4Q+Wg/rZyHqhYeVW1VcNUStXODVH3QaIPPwgdijLQ/khrxW5kaTZjh7
-# 3Lt7CzYeBUDb0xirvTpP3apj043lveJfmEGb/bjnbiRcIOtuPp4S7SyuJQ0RzVyB
-# 6y+MR/cpXZvajqGCAyYwggMiBgkqhkiG9w0BCQYxggMTMIIDDwIBATB9MGkxCzAJ
+# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAsZiX0p9qTVTXvkxy+s/AtImhAOdcX+I0J
+# e3hA7TSEUDANBgkqhkiG9w0BAQEFAASCAgBahuiY3o1iJD9cAn30pnkfXEC6QIm2
+# Hg1BFfagwXVRymvRNz1qznOKFug4nG+WLaYgpadVHIGZkk0hE/vaHHiBizBHejle
+# rIVCK+s2F7Q4ckQM/3QFlqkpc6oB3eO6mAwlr5oFjVTWUBS0UkrAabCuoc6dHwDA
+# Vc/zxi8jkx1cAFV12QF+7dVZqE0B0UaK2zG6O4iUURPQxKC5kPwzdtLM22sK05x9
+# aJ7WtPtlqsCwIUIHNHrPh64Lk+v/v5X1TZv9XjqRiibb/rB5zMcTM0cRKzK3ljK7
+# iNOeVqgDtUR6r7L/hqF9FkMXhDtnj2vRdX6j6raoaqsp6dMscMytrMbeSQ4XVCSY
+# P1NBPxF9HwESr+ooOlxRFAMwLcSZ6yMVCwTGD7286bPDaodBjqSlXhEH9aMH3TFT
+# suXjIKTbh03R4Fem/IWlSIRYPKtwu11Ohx1xZG5lu9e74KNTKhztkEnyC6jCLDYL
+# aeezql+/FCfPAuWifecVI82zePydmujHvonSs7lgIRMCQKLlLS6fPzG7T0GMnRwB
+# cjrcJtqRd14IKnFwAN99/AOsFoMdy94UVmKL15OrX+4p0uVZ1+uBODGrVVBf2CyL
+# C3NRAuaKynse0V5/GD3KzqB+a+zZC2V8syd8/AoumeSfU4OlVebH5o7ceecsE3l8
+# Vi+7NHzsVd34sqGCAyYwggMiBgkqhkiG9w0BCQYxggMTMIIDDwIBATB9MGkxCzAJ
 # BgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjFBMD8GA1UEAxM4RGln
 # aUNlcnQgVHJ1c3RlZCBHNCBUaW1lU3RhbXBpbmcgUlNBNDA5NiBTSEEyNTYgMjAy
 # NSBDQTECEAqA7xhLjfEFgtHEdqeVdGgwDQYJYIZIAWUDBAIBBQCgaTAYBgkqhkiG
-# 9w0BCQMxCwYJKoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNTA4MDcxMzE5NTZa
-# MC8GCSqGSIb3DQEJBDEiBCD4YZtyrLefP/o1raa4GqSZz/6+gm/M91bhPbMy8phj
-# jTANBgkqhkiG9w0BAQEFAASCAgAOtplYx6/29UOdYAoiAJ5DEJr2cvmrvbfiVCoG
-# cdadLFeEklHQjZGz37mkNvL/rSo0mXBqGC7JHbZ8/8LMyh933Qu1rhQef/c72jbN
-# HbP7vAtWuZpFbF421eS7hXi055w+bW6HxHOWZfrxKc60H/qGyxZ3dkDHISmfHbhl
-# tQqZNFvVRNuwyDZAiBBYFhL1kdVfJGSqnl9s2NhY+vg2yHDv+BgyAdxioMz08pyP
-# 4gDkyqooec9jttWM/1ciWo3ruWuFQIu4FJJE+dWRc+nGaabxSMosvPrKRKnRzoqQ
-# bc9cDAAgblDjwx5Q9eKZ1nMoiUKuTa0HA2VFbhYXOgrNuPod3+AYibGXYTyJEo1M
-# YcQUnyojtZqlQKhjOwQSzSlfT33a5NiwLil2JjyL7elZMDUF2gE9V5Ps9g4H1SgE
-# SUXZTZKAKVFi9adyS0KGevNiSrbfWDHYdZ9+xXf61NnMAwYJvAyENDtqnE0wiCPV
-# xMUuw6TfrzSuSnMoxyyp4Uz2f+WAbnYuvKHcoFMkmSrzfpGnZxuN2U+fcF8f/fno
-# dgxPquS8LJxWn7FkPHD8xaUDe34nK0zAseuGTd/yy0zUFdzzy2xF77ufiI+UXpaC
-# HipTsdadWa7WcVlzya25vtijTisnfGYl29EFu6YRlbrM33BVuQm7wNoy+QQnEmVZ
-# DkamRg==
+# 9w0BCQMxCwYJKoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNjAyMDkwOTQ2MTJa
+# MC8GCSqGSIb3DQEJBDEiBCC9TXAYHi9PgvgG4h2et9u05MhvX7bRIlljwKoFrwtV
+# /DANBgkqhkiG9w0BAQEFAASCAgBSKMmo691ei0XCvE00ITUd8alUNUisXWC3eKvJ
+# 0NqMqHhzcxKuwTifVSOlIbiMAwZp8Gg+BJjodpJHkRReNL8nTZvTOsjQ6dJ7GJ3e
+# pR6z8oPcSy7iHDYJHDI3F/CqTZ9OCfpzdjhXKUOnc1UPBdveC9hM2Dpbwqr5WmwZ
+# 8kYJiUlHGlr5XQGiVHJ4l73dBMs9qboB0NLt+HIPoMSuB0OFsQt2gT14UNiVhve0
+# e4nNFwprO0jt11faQbVVMFTPXmk8JQgL4GEyLRRrOOQ8+wQBZ4F1k4s1MC6ixw6B
+# yuQtW7rwZP2vib2kxggAs+OAmNwybzRqg9mi/dV5QYumC8WBc7fxPpnFCurL0OUe
+# 812xxAlXy50/BWb8RgOgBKORyWwUIg9O7HWymS2YcKwtCmlH058xDRsUh7quW7EI
+# u8VcZduBvIvPIsPPc96KuKEHZ2af2i5pn8Sovlc3wRRlZCmLWa3tzO4M2kI+5++0
+# HCW01EvcgpxrQ9HQfF0YbKT5XOcGJUlIkrJzZR4v8XwYZyrxlI1BrGP/TsSlo01I
+# YxGkotZCsIWheKaLfRgPcpe75kcw7vHRkgNif/+9SlYcXZqX2HflUBNBa8MjCQ/B
+# mLbPH0XJIzfiwTewYglXqYT9l+cJGX+DCMarSvfYdC6PSUVD1i5f0O4PXP6gMKXm
+# Ifk6LQ==
 # SIG # End signature block
