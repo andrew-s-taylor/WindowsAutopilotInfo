@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 5.0.12
+.VERSION 5.0.14
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -45,6 +45,8 @@ v5.0.9 - Another groups fix, use name instead of ID for lookup
 v5.0.10 - Removed an unused variable to trigger error for devices in another tenant
 v5.0.11 - Added new permissions
 v5.0.12 - WAM fix
+v5.0.13 - WAM Update
+v5.0.14 - Update device fix from Manel Rodero on bsky
 #>
 
 <#
@@ -117,7 +119,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        5.0.10
+Version:        5.0.14
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -1986,17 +1988,17 @@ Get-AutopilotEvent
     .NOTES
     NAME: check-importeddevice
     #>
-    [cmdletbinding()]
+            [cmdletbinding()]
     
-    param
-    (
-        $manufacturer,
-        $model,
-        $serial
-    )
-    ##Check it exists
-    $uri = "https://graph.microsoft.com/beta/deviceManagement/importedDeviceIdentities/searchExistingIdentities"
-    $json = @"
+            param
+            (
+                $manufacturer,
+                $model,
+                $serial
+            )
+            ##Check it exists
+            $uri = "https://graph.microsoft.com/beta/deviceManagement/importedDeviceIdentities/searchExistingIdentities"
+            $json = @"
     {
         "importedDeviceIdentities": [
             {
@@ -2006,20 +2008,21 @@ Get-AutopilotEvent
         ]
     }
 "@
-    $response = (Invoke-MgGraphRequest -Uri $uri -Method Post -Body $json -OutputType PSObject).value
+            $response = (Invoke-MgGraphRequest -Uri $uri -Method Post -Body $json -OutputType PSObject).value
     
     
-    if (!$response) {
-        return $false
-    } else {
-        return $true
-    }
+            if (!$response) {
+                return $false
+            }
+            else {
+                return $true
+            }
     
-    }
+        }
     
 
-function import-deviceidentifier {
-<#
+        function import-deviceidentifier {
+            <#
 .SYNOPSIS
 This function is used to import a device identifier (Windows) already exists in the Intune environment
 .DESCRIPTION
@@ -2030,18 +2033,18 @@ Returns true or false
 .NOTES
 NAME: import-deviceidentifier
 #>
-[cmdletbinding()]
+            [cmdletbinding()]
 
-param
-(
-$manufacturer,
-$model,
-$serial
-)
-##Send it
-$uri = "https://graph.microsoft.com/beta/deviceManagement/importedDeviceIdentities/importDeviceIdentityList"
+            param
+            (
+                $manufacturer,
+                $model,
+                $serial
+            )
+            ##Send it
+            $uri = "https://graph.microsoft.com/beta/deviceManagement/importedDeviceIdentities/importDeviceIdentityList"
 
-$json = @"
+            $json = @"
 {
 "importedDeviceIdentities": [
     {
@@ -2052,14 +2055,14 @@ $json = @"
 "overwriteImportedDeviceIdentities": false
 }
 "@
-Invoke-MgGraphRequest -Uri $uri -Method Post -Body $json -OutputType PSObject
-}
+            Invoke-MgGraphRequest -Uri $uri -Method Post -Body $json -OutputType PSObject
+        }
 
 
 
         # Connect
         if (($AppId -ne "") -and ($AppSecret -ne "")) {
-            Set-MgGraphOption -DisableLoginByWAM $true
+            Set-MgGraphOption -EnableLoginByWAM $false
             Connect-ToGraph -AppId $AppId -AppSecret $AppSecret -Tenant $TenantId | Out-Null
         }
         elseif ($CertificateThumbprint -ne "") {
@@ -2090,113 +2093,113 @@ Process {
     ##Check ImportCSV is empty
     if ($InputFile -eq "") {
 
-    foreach ($comp in $Name) {
-        $bad = $false
+        foreach ($comp in $Name) {
+            $bad = $false
 
-        # Get a CIM session
-        if ($comp -eq "localhost") {
-            $session = New-CimSession
-        }
-        else {
-            $session = New-CimSession -ComputerName $comp -Credential $Credential
-        }
+            # Get a CIM session
+            if ($comp -eq "localhost") {
+                $session = New-CimSession
+            }
+            else {
+                $session = New-CimSession -ComputerName $comp -Credential $Credential
+            }
 
-        # Get the common properties.
-        Write-Verbose "Checking $comp"
-        $serial = (Get-CimInstance -CimSession $session -Class Win32_BIOS).SerialNumber
+            # Get the common properties.
+            Write-Verbose "Checking $comp"
+            $serial = (Get-CimInstance -CimSession $session -Class Win32_BIOS).SerialNumber
 
-        if ($identifier) {
-            $cs = Get-CimInstance -CimSession $session -Class Win32_ComputerSystem
-            $make = $cs.Manufacturer.Trim().Replace(".", "").Replace(",", "")
-            $model = $cs.Model.Trim().Replace(".", "").Replace(",", "")
+            if ($identifier) {
+                $cs = Get-CimInstance -CimSession $session -Class Win32_ComputerSystem
+                $make = $cs.Manufacturer.Trim().Replace(".", "").Replace(",", "")
+                $model = $cs.Model.Trim().Replace(".", "").Replace(",", "")
             
-        }
-        else {
-        # Get the hash (if available)
-        $devDetail = (Get-CimInstance -CimSession $session -Namespace root/cimv2/mdm/dmmap -Class MDM_DevDetail_Ext01 -Filter "InstanceID='Ext' AND ParentID='./DevDetail'")
-        if ($devDetail) {
-            $hash = $devDetail.DeviceHardwareData
-        }
-        else {
-            $bad = $true
-            $hash = ""
-        }
+            }
+            else {
+                # Get the hash (if available)
+                $devDetail = (Get-CimInstance -CimSession $session -Namespace root/cimv2/mdm/dmmap -Class MDM_DevDetail_Ext01 -Filter "InstanceID='Ext' AND ParentID='./DevDetail'")
+                if ($devDetail) {
+                    $hash = $devDetail.DeviceHardwareData
+                }
+                else {
+                    $bad = $true
+                    $hash = ""
+                }
     
-        # If the hash isn't available, get the make and model
-        if ($bad) {
-            $cs = Get-CimInstance -CimSession $session -Class Win32_ComputerSystem
-            $make = $cs.Manufacturer.Trim()
-            $model = $cs.Model.Trim()
+                # If the hash isn't available, get the make and model
+                if ($bad) {
+                    $cs = Get-CimInstance -CimSession $session -Class Win32_ComputerSystem
+                    $make = $cs.Manufacturer.Trim()
+                    $model = $cs.Model.Trim()
+                    if ($Partner) {
+                        $bad = $false
+                    }
+                }
+                else {
+                    $make = ""
+                    $model = ""
+                }
+            }
+            # Getting the PKID is generally problematic for anyone other than OEMs, so let's skip it here
+            $product = ""
+
+            # Depending on the format requested, create the necessary object
             if ($Partner) {
-                $bad = $false
-            }
-        }
-        else {
-            $make = ""
-            $model = ""
-        }
-    }
-        # Getting the PKID is generally problematic for anyone other than OEMs, so let's skip it here
-        $product = ""
+                # Create a pipeline object
+                $c = New-Object psobject -Property @{
+                    "Device Serial Number" = $serial
+                    "Windows Product ID"   = $product
+                    "Hardware Hash"        = $hash
+                    "Manufacturer name"    = $make
+                    "Device model"         = $model
+                }
+                # From spec:
+                # "Manufacturer Name" = $make
+                # "Device Name" = $model
 
-        # Depending on the format requested, create the necessary object
-        if ($Partner) {
-            # Create a pipeline object
-            $c = New-Object psobject -Property @{
-                "Device Serial Number" = $serial
-                "Windows Product ID"   = $product
-                "Hardware Hash"        = $hash
-                "Manufacturer name"    = $make
-                "Device model"         = $model
             }
-            # From spec:
-            # "Manufacturer Name" = $make
-            # "Device Name" = $model
-
-        }
-        elseif ($identifier) {
-            # Create a pipeline object
-            $c = New-Object psobject -Property @{
-                "Serial" = $serial
-                "Manufacturer" = $make
-                "Model" = $model
+            elseif ($identifier) {
+                # Create a pipeline object
+                $c = New-Object psobject -Property @{
+                    "Serial"       = $serial
+                    "Manufacturer" = $make
+                    "Model"        = $model
+                }
             }
-        }
-        else {
-            # Create a pipeline object
-            $c = New-Object psobject -Property @{
-                "Device Serial Number" = $serial
-                "Windows Product ID"   = $product
-                "Hardware Hash"        = $hash
-            }
+            else {
+                # Create a pipeline object
+                $c = New-Object psobject -Property @{
+                    "Device Serial Number" = $serial
+                    "Windows Product ID"   = $product
+                    "Hardware Hash"        = $hash
+                }
             
-            if ($GroupTag -ne "") {
-                Add-Member -InputObject $c -NotePropertyName "Group Tag" -NotePropertyValue $GroupTag
+                if ($GroupTag -ne "") {
+                    Add-Member -InputObject $c -NotePropertyName "Group Tag" -NotePropertyValue $GroupTag
+                }
+                if ($AssignedUser -ne "") {
+                    Add-Member -InputObject $c -NotePropertyName "Assigned User" -NotePropertyValue $AssignedUser
+                }
             }
-            if ($AssignedUser -ne "") {
-                Add-Member -InputObject $c -NotePropertyName "Assigned User" -NotePropertyValue $AssignedUser
+
+            # Write the object to the pipeline or array
+            if ($bad) {
+                # Report an error when the hash isn't available
+                Write-Error -Message "Unable to retrieve device hardware data (hash) from computer $comp" -Category DeviceError
             }
-        }
+            elseif ($OutputFile -eq "") {
+                $c
+            }
+            else {
+                $computers += $c
+                Write-Host "Gathered details for device with serial number: $serial"
+            }
 
-        # Write the object to the pipeline or array
-        if ($bad) {
-            # Report an error when the hash isn't available
-            Write-Error -Message "Unable to retrieve device hardware data (hash) from computer $comp" -Category DeviceError
+            Remove-CimSession $session
         }
-        elseif ($OutputFile -eq "") {
-            $c
-        }
-        else {
-            $computers += $c
-            Write-Host "Gathered details for device with serial number: $serial"
-        }
-
-        Remove-CimSession $session
     }
-}
-else {
-    write-host "CSV Imported, skipping device check"
-}
+    else {
+        write-host "CSV Imported, skipping device check"
+    }
 
 }
 
@@ -2265,90 +2268,51 @@ End {
         }
 
         else {
-        ##Check if $newdevice is false
+            ##Check if $newdevice is false
 
-        if ($newdevice) {
-            $importStart = Get-Date
-            $imported = @()
-            $computers | ForEach-Object {
-                # Add the devices
-                "Adding New Device serial $($serial)"
+            if ($newdevice) {
                 $importStart = Get-Date
                 $imported = @()
                 $computers | ForEach-Object {
-                    $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
+                    # Add the devices
+                    "Adding New Device serial $($serial)"
+                    $importStart = Get-Date
+                    $imported = @()
+                    $computers | ForEach-Object {
+                        $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
+                    }
                 }
             }
-        }
-        else {
+            else {
         
-            Write-Host "Loading all objects. This can take a while on large tenants"
-            # $aadDevices = getallpagination -url "https://graph.microsoft.com/beta/devices"
+                Write-Host "Loading all objects. This can take a while on large tenants"
+                # $aadDevices = getallpagination -url "https://graph.microsoft.com/beta/devices"
 
-            #$devices = getdevicesandusers
+                #$devices = getdevicesandusers
 
-            #$intunedevices = $devices | Where-Object { $_.operatingSystem -eq "Windows" }
+                #$intunedevices = $devices | Where-Object { $_.operatingSystem -eq "Windows" }
 
-            # Update existing devices by Thiago Beier https://twitter.com/thiagobeier https://www.linkedin.com/in/tbeier/
+                # Update existing devices by Thiago Beier https://twitter.com/thiagobeier https://www.linkedin.com/in/tbeier/
         
-            $importStart = Get-Date
-            $imported = @()
-            $computers | ForEach-Object {
-                $device = Get-AutopilotDevice | Where-Object { $_.serialNumber -eq "$($serial)" }
-                if ($device) {
-                    Write-Host "Device already exists in Autopilot"
-                    $sanityCheckModel = $device.model
-                    $sanityCheckLastSeen = $device.lastContactedDateTime.ToString("dddd dd/MM/yyyy hh:mm tt")
-                    Write-Host "AutoPilot indicates model is a $sanityCheckModel, last checked-in $sanityCheckLastSeen."
-                    ##Check if $delete has been set
-                    if ($delete) {
-                        Write-Host "Deleting device from AutoPilot"
-                        Remove-AutopilotDevice -id $device.id
-                        Write-Host "Device deleted from AutoPilot"
-
-                    
-                        #$intunedevicetoremove = $intunedevices | Where-Object { $_.SerialNumber -eq "$($serial)" }   
-                        $intunedevicetoremove = (Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices?`$filter=startsWith(serialNumber, '$serial')" -Method GET -OutputType PSObject).value
-                        $intunedeviceid = $intunedevicetoremove.ID
-                        $aaddeviceid = $intunedevicetoremove.AzureADDeviceID    
-                        $aaduri = "https://graph.microsoft.com/beta/devices?`$filter=deviceID eq '$aaddeviceid'"
-                        $aadobjectid = ((Invoke-MgGraphRequest -Uri $aaduri -Method GET -OutputType PSObject).value).id
-                        Write-Host "Deleting device from Intune"
-                        Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices/$intunedeviceid" -Method DELETE
-                        Write-Host "Deleted device $serial from Intune"
-
-                        Write-Host "Deleting Device from Entra ID"
-                        Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/devices/$aadobjectid" -Method DELETE
-                        Write-Host "Deleted device from Entra"
-
-                        Write-Host "Adding back to Autopilot"
-                        $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
-
-                    }
-                    ##Elseif $grouptag is set
-                    elseif ($updatetag) {
-                        "Updating Existing Device - Working on device serial $($serial)"
-                        $imported += Set-AutopilotDevice -id $device.Id -groupTag $GroupTag
-    
-                    }
-                    else {
-                        ##Prompt to delete or update
-                        if ($Force) {
-                            $choice = "update"
-                        } else {
-                            $choice = Read-Host "Do you want to delete or update? (delete/update)"
-                        }
-
-                        if ($choice -eq "delete") {
-                            # Perform delete action
-                            Write-Output "You chose to delete."
+                $importStart = Get-Date
+                $imported = @()
+                $computers | ForEach-Object {
+                    $currentSerial = $_.'Device Serial Number'
+                    $device = Get-AutopilotDevice | Where-Object { $_.serialNumber -eq "$($currentSerial)" }
+                    if ($device) {
+                        Write-Host "Device already exists in Autopilot"
+                        $sanityCheckModel = $device.model
+                        $sanityCheckLastSeen = $device.lastContactedDateTime.ToString("dddd dd/MM/yyyy hh:mm tt")
+                        Write-Host "AutoPilot indicates model is a $sanityCheckModel, last checked-in $sanityCheckLastSeen."
+                        ##Check if $delete has been set
+                        if ($delete) {
                             Write-Host "Deleting device from AutoPilot"
                             Remove-AutopilotDevice -id $device.id
                             Write-Host "Device deleted from AutoPilot"
 
-    
-                            #$intunedevicetoremove = $intunedevices | Where-Object { $_.SerialNumber -eq "$($serial)" } 
-                            $intunedevicetoremove = (Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices?`$filter=startsWith(serialNumber, '$serial')" -Method GET -OutputType PSObject).value      
+                    
+                            #$intunedevicetoremove = $intunedevices | Where-Object { $_.SerialNumber -eq "$($serial)" }   
+                            $intunedevicetoremove = (Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices?`$filter=startsWith(serialNumber, '$serial')" -Method GET -OutputType PSObject).value
                             $intunedeviceid = $intunedevicetoremove.ID
                             $aaddeviceid = $intunedevicetoremove.AzureADDeviceID    
                             $aaduri = "https://graph.microsoft.com/beta/devices?`$filter=deviceID eq '$aaddeviceid'"
@@ -2365,216 +2329,262 @@ End {
                             $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
 
                         }
-                        elseif ($choice -eq "update") {
-                            # Perform update action
-                            Write-Output "You chose to update."
+                        ##Elseif $grouptag is set
+                        elseif ($updatetag) {
                             "Updating Existing Device - Working on device serial $($serial)"
                             $imported += Set-AutopilotDevice -id $device.Id -groupTag $GroupTag
-
+    
                         }
                         else {
-                            Write-Output "Invalid choice. Please enter 'delete' or 'update'."
-                            exit
+                            ##Prompt to delete or update
+                            if ($Force) {
+                                $choice = "update"
+                            }
+                            else {
+                                $choice = Read-Host "Do you want to delete or update? (delete/update)"
+                            }
+
+                            if ($choice -eq "delete") {
+                                # Perform delete action
+                                Write-Output "You chose to delete."
+                                Write-Host "Deleting device from AutoPilot"
+                                Remove-AutopilotDevice -id $device.id
+                                Write-Host "Device deleted from AutoPilot"
+
+    
+                                #$intunedevicetoremove = $intunedevices | Where-Object { $_.SerialNumber -eq "$($serial)" } 
+                                $intunedevicetoremove = (Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices?`$filter=startsWith(serialNumber, '$serial')" -Method GET -OutputType PSObject).value      
+                                $intunedeviceid = $intunedevicetoremove.ID
+                                $aaddeviceid = $intunedevicetoremove.AzureADDeviceID    
+                                $aaduri = "https://graph.microsoft.com/beta/devices?`$filter=deviceID eq '$aaddeviceid'"
+                                $aadobjectid = ((Invoke-MgGraphRequest -Uri $aaduri -Method GET -OutputType PSObject).value).id
+                                Write-Host "Deleting device from Intune"
+                                Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices/$intunedeviceid" -Method DELETE
+                                Write-Host "Deleted device $serial from Intune"
+
+                                Write-Host "Deleting Device from Entra ID"
+                                Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/devices/$aadobjectid" -Method DELETE
+                                Write-Host "Deleted device from Entra"
+
+                                Write-Host "Adding back to Autopilot"
+                                $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
+
+                            }
+                            elseif ($choice -eq "update") {
+                                # Perform update action
+                                Write-Output "You chose to update."
+                                "Updating Existing Device - Working on device serial $($serial)"
+                                $imported += Set-AutopilotDevice -id $device.Id -groupTag $GroupTag
+
+                            }
+                            else {
+                                Write-Output "Invalid choice. Please enter 'delete' or 'update'."
+                                exit
+                            }
+                        }
+                    }
+                    else {
+                        # Add the devices
+                        "Adding New Device serial $($serial)"
+                        $importStart = Get-Date
+                        $imported = @()
+                        $computers | ForEach-Object {
+                            $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
                         }
                     }
                 }
-                else {
-                    # Add the devices
-                    "Adding New Device serial $($serial)"
-                    $importStart = Get-Date
-                    $imported = @()
-                    $computers | ForEach-Object {
-                        $imported += Add-AutopilotImportedDevice -serialNumber $_.'Device Serial Number' -hardwareIdentifier $_.'Hardware Hash' -groupTag $_.'Group Tag' -assignedUser $_.'Assigned User'
-                    }
-                }
-            }
         
-        }
+            }
 
-        # Wait until the devices have been imported
-        $processingCount = 1
-        while ($processingCount -gt 0) {
-            $current = @()
-            $processingCount = 0
-            $imported | ForEach-Object {
-                #$device = Get-AutopilotImportedDevice -id $_.id
-                $device = Get-AutopilotImportedDevice | Where-Object { $_.serialNumber -eq "$($serial)" }
-                if ($device.state.deviceImportStatus -eq "unknown") {
-                    $processingCount = $processingCount + 1
-                }
-                $current += $device
-            }
-            $deviceCount = $imported.Length
-            Write-Host "Waiting for $processingCount of $deviceCount to be imported"
-            if ($processingCount -gt 0) {
-                Start-Sleep 30
-            }
-        }
-        $importDuration = (Get-Date) - $importStart
-        $importSeconds = [Math]::Ceiling($importDuration.TotalSeconds)
-        $successCount = 0
-        $current | ForEach-Object {
-            Write-Host "$($device.serialNumber): $($device.state.deviceImportStatus) $($device.state.deviceErrorCode) $($device.state.deviceErrorName)"
-            if ($device.state.deviceImportStatus -eq "complete") {
-                $successCount = $successCount + 1
-            }
-        }
-        Write-Host "$successCount devices imported successfully. Elapsed time to complete import: $importSeconds seconds"
-        
-        # Wait until the devices can be found in Intune (should sync automatically)
-        $syncStart = Get-Date
-        $processingCount = 1
-        while ($processingCount -gt 0) {
-            $autopilotDevices = @()
-            $processingCount = 0
-            $current | ForEach-Object {
-                if ($device.state.deviceImportStatus -eq "complete") {
-                    $device = Get-AutopilotDevice -id $_.state.deviceRegistrationId
-                    if (-not $device) {
+            # Wait until the devices have been imported
+            $processingCount = 1
+            while ($processingCount -gt 0) {
+                $current = @()
+                $processingCount = 0
+                $imported | ForEach-Object {
+                    #$device = Get-AutopilotImportedDevice -id $_.id
+                    $device = Get-AutopilotImportedDevice | Where-Object { $_.serialNumber -eq "$($serial)" }
+                    if ($device.state.deviceImportStatus -eq "unknown") {
                         $processingCount = $processingCount + 1
                     }
-                    $autopilotDevices += $device
-                }    
+                    $current += $device
+                }
+                $deviceCount = $imported.Length
+                Write-Host "Waiting for $processingCount of $deviceCount to be imported"
+                if ($processingCount -gt 0) {
+                    Start-Sleep 30
+                }
             }
-            $deviceCount = $autopilotDevices.Length
-            Write-Host "Waiting for $processingCount of $deviceCount to be synced"
-            if ($processingCount -gt 0) {
-                Start-Sleep 30
+            $importDuration = (Get-Date) - $importStart
+            $importSeconds = [Math]::Ceiling($importDuration.TotalSeconds)
+            $successCount = 0
+            $current | ForEach-Object {
+                Write-Host "$($device.serialNumber): $($device.state.deviceImportStatus) $($device.state.deviceErrorCode) $($device.state.deviceErrorName)"
+                if ($device.state.deviceImportStatus -eq "complete") {
+                    $successCount = $successCount + 1
+                }
             }
-        }
-        $syncDuration = (Get-Date) - $syncStart
-        $syncSeconds = [Math]::Ceiling($syncDuration.TotalSeconds)
-        Write-Host "All devices synced. Elapsed time to complete sync: $syncSeconds seconds"
+            Write-Host "$successCount devices imported successfully. Elapsed time to complete import: $importSeconds seconds"
+        
+            # Wait until the devices can be found in Intune (should sync automatically)
+            $syncStart = Get-Date
+            $processingCount = 1
+            while ($processingCount -gt 0) {
+                $autopilotDevices = @()
+                $processingCount = 0
+                $current | ForEach-Object {
+                    if ($_.state.deviceImportStatus -eq "complete") {
+                        $registrationId = $_.state.deviceRegistrationId
+                        if (-not $registrationId) {
+                            $processingCount = $processingCount + 1
+                            return
+                        }
+                        $device = Get-AutopilotDevice -id $registrationId
+                        if (-not $device) {
+                            $processingCount = $processingCount + 1
+                        }
+                        $autopilotDevices += $device
+                    }    
+                }
+                $deviceCount = $autopilotDevices.Length
+                Write-Host "Waiting for $processingCount of $deviceCount to be synced"
+                if ($processingCount -gt 0) {
+                    Start-Sleep 30
+                }
+            }
+            $syncDuration = (Get-Date) - $syncStart
+            $syncSeconds = [Math]::Ceiling($syncDuration.TotalSeconds)
+            Write-Host "All devices synced. Elapsed time to complete sync: $syncSeconds seconds"
 
-        # Cleanup by Thiago Beier https://twitter.com/thiagobeier https://www.linkedin.com/in/tbeier/
-        Get-AutopilotImportedDevice | Where-Object { $_.serialnumber -eq "$serial" } | ForEach-Object { Remove-AutopilotImportedDevice -id $_.id }
-        # Invoke AutopilotSync (When windows autopilot devices GroupTag are updated // changing windows autopilot deployment profiles)
-        try {
-            Invoke-AutopilotSync -ErrorAction Stop
-        }
-        catch {
-            Write-Host "$($_.exception.message)"
-            Write-Host "An error occurred. Waiting for 12,5 minutes before retrying..."
-            Start-Sleep -Seconds 750
-            Invoke-AutopilotSync
-        }
+            # Cleanup by Thiago Beier https://twitter.com/thiagobeier https://www.linkedin.com/in/tbeier/
+            Get-AutopilotImportedDevice | Where-Object { $_.serialnumber -eq "$serial" } | ForEach-Object { Remove-AutopilotImportedDevice -id $_.id }
+            # Invoke AutopilotSync (When windows autopilot devices GroupTag are updated // changing windows autopilot deployment profiles)
+            try {
+                Invoke-AutopilotSync -ErrorAction Stop
+            }
+            catch {
+                Write-Host "$($_.exception.message)"
+                Write-Host "An error occurred. Waiting for 12,5 minutes before retrying..."
+                Start-Sleep -Seconds 750
+                Invoke-AutopilotSync
+            }
 
-        # Add the device to the specified AAD group
-        # Add the device to the specified AAD group
-        if ($AddToGroup) {
-            foreach ($ADGroup in $AddToGroup) {
-                #$aadGroup = Get-MgGroup -Filter "DisplayName eq '$ADGroup'"
-                $guri = "https://graph.microsoft.com/beta/groups?`$filter=displayName eq '$ADGroup'"
-                $aadGroup = (Invoke-MgGraphRequest -Uri $guri -Method GET -OutputType PSObject).value
-                if ($aadGroup) {
-                    $autopilotDevices | ForEach-Object {
-                        $uri = "https://graph.microsoft.com/beta/devices?`$filter=deviceId eq '" + $_.azureActiveDirectoryDeviceId + "'"
-                        $aadDevice = (Invoke-MgGraphRequest -Uri $uri -Method GET -OutputType PSObject -SkipHttpErrorCheck).value
-                        if ($aadDevice) {
-                            Write-Host "Adding device $($aadDevice.displayName) to group $ADGroup"
-                            $egrpid = $aadGroup.Id
-                            $edvcid = $aadDevice.id
+            # Add the device to the specified AAD group
+            # Add the device to the specified AAD group
+            if ($AddToGroup) {
+                foreach ($ADGroup in $AddToGroup) {
+                    #$aadGroup = Get-MgGroup -Filter "DisplayName eq '$ADGroup'"
+                    $guri = "https://graph.microsoft.com/beta/groups?`$filter=displayName eq '$ADGroup'"
+                    $aadGroup = (Invoke-MgGraphRequest -Uri $guri -Method GET -OutputType PSObject).value
+                    if ($aadGroup) {
+                        $autopilotDevices | ForEach-Object {
+                            $uri = "https://graph.microsoft.com/beta/devices?`$filter=deviceId eq '" + $_.azureActiveDirectoryDeviceId + "'"
+                            $aadDevice = (Invoke-MgGraphRequest -Uri $uri -Method GET -OutputType PSObject -SkipHttpErrorCheck).value
+                            if ($aadDevice) {
+                                Write-Host "Adding device $($aadDevice.displayName) to group $ADGroup"
+                                $egrpid = $aadGroup.Id
+                                $edvcid = $aadDevice.id
 
-                            #New-MgGroupMember -GroupId $aadGroup.Id -DirectoryObjectId $aadDevice.id
-                            ##Use Graph
-                            $eguri = "https://graph.microsoft.com/beta/groups/$egrpid/members/`$ref"
-                            $json = @"
+                                #New-MgGroupMember -GroupId $aadGroup.Id -DirectoryObjectId $aadDevice.id
+                                ##Use Graph
+                                $eguri = "https://graph.microsoft.com/beta/groups/$egrpid/members/`$ref"
+                                $json = @"
 
                             {
                                 "@odata.id": "https://graph.microsoft.com/beta/directoryObjects/$edvcid"
                               }
 "@
-                            Invoke-MgGraphRequest -Method POST -Uri $eguri -Body $json -ContentType "application/json" -OutputType PSObject
+                                Invoke-MgGraphRequest -Method POST -Uri $eguri -Body $json -ContentType "application/json" -OutputType PSObject
+                            }
+                            else {
+                                Write-Error "Unable to find Entra device with ID $($aadDevice.deviceId)"
+                            }
                         }
-                        else {
-                            Write-Error "Unable to find Entra device with ID $($aadDevice.deviceId)"
-                        }
+                        Write-Host "Added devices to group '$ADGroup' ($($aadGroup.Id))"
                     }
-                    Write-Host "Added devices to group '$ADGroup' ($($aadGroup.Id))"
+                    else {
+                        Write-Error "Unable to find group $ADGroup"
+                    }
                 }
-                else {
-                    Write-Error "Unable to find group $ADGroup"
-                }
-            }
-        } #to deal with the array
+            } #to deal with the array
 
-        # Assign the computer name
-        if ($AssignedComputerName -ne "") {
-            $autopilotDevices | ForEach-Object {
-                Set-AutopilotDevice -id $_.Id -displayName $AssignedComputerName
-            }
-        }
-
-        # Wait for assignment (if specified)
-        if ($Assign) {
-            $assignStart = Get-Date
-            $processingCount = 1
-            while ($processingCount -gt 0) {
-                $processingCount = 0
+            # Assign the computer name
+            if ($AssignedComputerName -ne "") {
                 $autopilotDevices | ForEach-Object {
-                    $device = Get-AutopilotDevice -id $_.id -expand
-                    if (-not ($device.deploymentProfileAssignmentStatus.StartsWith("assigned"))) {
-                        $processingCount = $processingCount + 1
-                    }
+                    Set-AutopilotDevice -id $_.Id -displayName $AssignedComputerName
                 }
-                $deviceCount = $autopilotDevices.Length
-                Write-Host "Waiting for $processingCount of $deviceCount to be assigned"
-                if ($processingCount -gt 0) {
-                    Start-Sleep 30
-                }    
-            }
-            $assignDuration = (Get-Date) - $assignStart
-            $assignSeconds = [Math]::Ceiling($assignDuration.TotalSeconds)
-            Write-Host "Profiles assigned to all devices. Elapsed time to complete assignment: $assignSeconds seconds"    
-            if ($Reboot) {
-                Restart-Computer -Force
-            }
-            if ($Wipe) {
-                $deviceserial = $serial
-                ##Find device ID
-                $deviceuri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$filter=serialNumber eq '$serial'"
-                $deviceid = (Invoke-MgGraphRequest -Uri $deviceuri -Method GET -OutputType PSObject -SkipHttpErrorCheck).value.id
-                Write-Host "Sending a wipe to $deviceid"
-                ##Send a wipe
-                $wipeuri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/$deviceid/wipe"
-                $wipebody = @{
-                    keepEnrollmentData = $false
-                    keepUserData       = $false
-                }
-                Invoke-MgGraphRequest -Uri $wipeuri -Method POST -Body $wipebody -ContentType "application/json"
-                Write-Host "Wipe sent to $deviceid"
-            }
-            if ($Sysprep) {
-                ##Send a sysprep
-                Start-Process -NoNewWindow -FilePath "C:\windows\system32\sysprep\sysprep.exe" -ArgumentList "/oobe /reboot /quiet"
-                Write-Host "Sysprep executed"
-            }
-            if ($preprov) {
-                ##Create directory in %temp%
-                $path = $env:TEMP + "\preprov"
-                New-Item -Path $path -ItemType Directory
-                $uri = "https://github.com/andrew-s-taylor/WindowsAutopilotInfo/raw/main/windowskey-autoit.exe"
-                ##Download it
-                $output = "$path\windowskey-autoit.exe"
-                Invoke-WebRequest -Uri $uri -OutFile $output -UseBasicParsing
-                Write-Host "File downloaded to $output"
-                ##Run it
-                &$output
-                
-            }
-            if ($ChangePK -ne "") {
-                # Run ChangePK.exe
-                Write-Host "Starting ChangePK"
-                Start-Process -NoNewWindow -Wait -FilePath "c:\windows\system32\changepk.exe" -ArgumentList "/ProductKey $ChangePK /NoUI /NoReboot"
-                Restart-Computer -Force
             }
 
+            # Wait for assignment (if specified)
+            if ($Assign) {
+                $assignStart = Get-Date
+                $processingCount = 1
+                while ($processingCount -gt 0) {
+                    $processingCount = 0
+                    $autopilotDevices | ForEach-Object {
+                        $device = Get-AutopilotDevice -id $_.id -expand
+                        if (-not ($device.deploymentProfileAssignmentStatus.StartsWith("assigned"))) {
+                            $processingCount = $processingCount + 1
+                        }
+                    }
+                    $deviceCount = $autopilotDevices.Length
+                    Write-Host "Waiting for $processingCount of $deviceCount to be assigned"
+                    if ($processingCount -gt 0) {
+                        Start-Sleep 30
+                    }    
+                }
+                $assignDuration = (Get-Date) - $assignStart
+                $assignSeconds = [Math]::Ceiling($assignDuration.TotalSeconds)
+                Write-Host "Profiles assigned to all devices. Elapsed time to complete assignment: $assignSeconds seconds"    
+                if ($Reboot) {
+                    Restart-Computer -Force
+                }
+                if ($Wipe) {
+                    $deviceserial = $serial
+                    ##Find device ID
+                    $deviceuri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$filter=serialNumber eq '$serial'"
+                    $deviceid = (Invoke-MgGraphRequest -Uri $deviceuri -Method GET -OutputType PSObject -SkipHttpErrorCheck).value.id
+                    Write-Host "Sending a wipe to $deviceid"
+                    ##Send a wipe
+                    $wipeuri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/$deviceid/wipe"
+                    $wipebody = @{
+                        keepEnrollmentData = $false
+                        keepUserData       = $false
+                    }
+                    Invoke-MgGraphRequest -Uri $wipeuri -Method POST -Body $wipebody -ContentType "application/json"
+                    Write-Host "Wipe sent to $deviceid"
+                }
+                if ($Sysprep) {
+                    ##Send a sysprep
+                    Start-Process -NoNewWindow -FilePath "C:\windows\system32\sysprep\sysprep.exe" -ArgumentList "/oobe /reboot /quiet"
+                    Write-Host "Sysprep executed"
+                }
+                if ($preprov) {
+                    ##Create directory in %temp%
+                    $path = $env:TEMP + "\preprov"
+                    New-Item -Path $path -ItemType Directory
+                    $uri = "https://github.com/andrew-s-taylor/WindowsAutopilotInfo/raw/main/windowskey-autoit.exe"
+                    ##Download it
+                    $output = "$path\windowskey-autoit.exe"
+                    Invoke-WebRequest -Uri $uri -OutFile $output -UseBasicParsing
+                    Write-Host "File downloaded to $output"
+                    ##Run it
+                    &$output
+                
+                }
+                if ($ChangePK -ne "") {
+                    # Run ChangePK.exe
+                    Write-Host "Starting ChangePK"
+                    Start-Process -NoNewWindow -Wait -FilePath "c:\windows\system32\changepk.exe" -ArgumentList "/ProductKey $ChangePK /NoUI /NoReboot"
+                    Restart-Computer -Force
+                }
+
+            }
         }
     }
-}
 
-##Re-enable WAM
-setx MSAL_FORCE_WAM 1
+    ##Re-enable WAM
+    setx MSAL_FORCE_WAM 1
 
 }
 
@@ -2587,8 +2597,8 @@ setx MSAL_FORCE_WAM 1
 # SIG # Begin signature block
 # MIIoUAYJKoZIhvcNAQcCoIIoQTCCKD0CAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCC/PQiZpgQuRW/D
-# 9+nC9+4YZ7/i0zhm3VOJmyfrTLQrIaCCIU0wggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDlyBySCEy4WpNh
+# o8ConK0WCMZBeHzLl+C0828VW4j3MqCCIU0wggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2771,34 +2781,34 @@ setx MSAL_FORCE_WAM 1
 # U2lnbmluZyBSU0E0MDk2IFNIQTM4NCAyMDIxIENBMQIQCLGfzbPa87AxVVgIAS8A
 # 6TANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkG
 # CSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEE
-# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAsZiX0p9qTVTXvkxy+s/AtImhAOdcX+I0J
-# e3hA7TSEUDANBgkqhkiG9w0BAQEFAASCAgBahuiY3o1iJD9cAn30pnkfXEC6QIm2
-# Hg1BFfagwXVRymvRNz1qznOKFug4nG+WLaYgpadVHIGZkk0hE/vaHHiBizBHejle
-# rIVCK+s2F7Q4ckQM/3QFlqkpc6oB3eO6mAwlr5oFjVTWUBS0UkrAabCuoc6dHwDA
-# Vc/zxi8jkx1cAFV12QF+7dVZqE0B0UaK2zG6O4iUURPQxKC5kPwzdtLM22sK05x9
-# aJ7WtPtlqsCwIUIHNHrPh64Lk+v/v5X1TZv9XjqRiibb/rB5zMcTM0cRKzK3ljK7
-# iNOeVqgDtUR6r7L/hqF9FkMXhDtnj2vRdX6j6raoaqsp6dMscMytrMbeSQ4XVCSY
-# P1NBPxF9HwESr+ooOlxRFAMwLcSZ6yMVCwTGD7286bPDaodBjqSlXhEH9aMH3TFT
-# suXjIKTbh03R4Fem/IWlSIRYPKtwu11Ohx1xZG5lu9e74KNTKhztkEnyC6jCLDYL
-# aeezql+/FCfPAuWifecVI82zePydmujHvonSs7lgIRMCQKLlLS6fPzG7T0GMnRwB
-# cjrcJtqRd14IKnFwAN99/AOsFoMdy94UVmKL15OrX+4p0uVZ1+uBODGrVVBf2CyL
-# C3NRAuaKynse0V5/GD3KzqB+a+zZC2V8syd8/AoumeSfU4OlVebH5o7ceecsE3l8
-# Vi+7NHzsVd34sqGCAyYwggMiBgkqhkiG9w0BCQYxggMTMIIDDwIBATB9MGkxCzAJ
+# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCCLfEjXnOM3yeZdu75Uv5cPPoQ3Sf0zR0xc
+# 6FTMSf23QzANBgkqhkiG9w0BAQEFAASCAgAaWC087Xozruftrywmwn+CKfF9cN7E
+# KFoyJ8Gj37G3ci5y6ZpVN4vCV8BiiIdQ58T8X0XQ9v/nt7sdWL32Og7Ry69ddXL8
+# aBGqW8bM9wMUCseG5HAyjz1Da1KUyrmU2NticsCee/IlujbpCdPneLpr9HcAVlHG
+# 1dhHTCpznHBWWgvfvAngUEZjJ+IKui3aDxN+/FpduF/cofksCY/tuGmLYSpNy/YP
+# fIP5xfmTTLWokPxEwz4h0EUD0I5OlM1MSlaw+yDLL7PVwVp/3IzMSpbknLvvbb/Z
+# o5tNnhUIgq/l12/UXxwJ7SkWiAFzzN/kb4vIYq9pD7jqF6oxW1LdFE68YBVYRtkx
+# CiFGfTA+cVciJglGxke2d1XsTVmsACB22OuDthQjZzFutDD8Sc0NCI4rQZDLGhgR
+# gkmJk86iH/3Hot0tKcj/0D+t4tVp3x2POGrF0GLbR0oXOoHIJMM5XaMS3lyaMb7s
+# 0tui8z8R9ZRm054ayOrlXjmLFiP++6n1+v/Tjm/a84t9sXYOJ2WLjkR/jzSmNPOa
+# SyfVYxiqU+YwZR30Kae/ex4hfGqL/3Ejs12oNWUHfR4Wf6ZH60smsWyE289p1luu
+# b2qD3h5rylsXJobWW3wGiwB3kTGGMGCosNtd2SDf0kpNKkFWE4Dk0NXmzIinAh0Y
+# vl5wekvYj22D4qGCAyYwggMiBgkqhkiG9w0BCQYxggMTMIIDDwIBATB9MGkxCzAJ
 # BgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjFBMD8GA1UEAxM4RGln
 # aUNlcnQgVHJ1c3RlZCBHNCBUaW1lU3RhbXBpbmcgUlNBNDA5NiBTSEEyNTYgMjAy
 # NSBDQTECEAqA7xhLjfEFgtHEdqeVdGgwDQYJYIZIAWUDBAIBBQCgaTAYBgkqhkiG
-# 9w0BCQMxCwYJKoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNjAyMDkwOTQ2MTJa
-# MC8GCSqGSIb3DQEJBDEiBCC9TXAYHi9PgvgG4h2et9u05MhvX7bRIlljwKoFrwtV
-# /DANBgkqhkiG9w0BAQEFAASCAgBSKMmo691ei0XCvE00ITUd8alUNUisXWC3eKvJ
-# 0NqMqHhzcxKuwTifVSOlIbiMAwZp8Gg+BJjodpJHkRReNL8nTZvTOsjQ6dJ7GJ3e
-# pR6z8oPcSy7iHDYJHDI3F/CqTZ9OCfpzdjhXKUOnc1UPBdveC9hM2Dpbwqr5WmwZ
-# 8kYJiUlHGlr5XQGiVHJ4l73dBMs9qboB0NLt+HIPoMSuB0OFsQt2gT14UNiVhve0
-# e4nNFwprO0jt11faQbVVMFTPXmk8JQgL4GEyLRRrOOQ8+wQBZ4F1k4s1MC6ixw6B
-# yuQtW7rwZP2vib2kxggAs+OAmNwybzRqg9mi/dV5QYumC8WBc7fxPpnFCurL0OUe
-# 812xxAlXy50/BWb8RgOgBKORyWwUIg9O7HWymS2YcKwtCmlH058xDRsUh7quW7EI
-# u8VcZduBvIvPIsPPc96KuKEHZ2af2i5pn8Sovlc3wRRlZCmLWa3tzO4M2kI+5++0
-# HCW01EvcgpxrQ9HQfF0YbKT5XOcGJUlIkrJzZR4v8XwYZyrxlI1BrGP/TsSlo01I
-# YxGkotZCsIWheKaLfRgPcpe75kcw7vHRkgNif/+9SlYcXZqX2HflUBNBa8MjCQ/B
-# mLbPH0XJIzfiwTewYglXqYT9l+cJGX+DCMarSvfYdC6PSUVD1i5f0O4PXP6gMKXm
-# Ifk6LQ==
+# 9w0BCQMxCwYJKoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNjA0MjgxODE4MzZa
+# MC8GCSqGSIb3DQEJBDEiBCAxZIqXQVAfPpyCu3ZStxmPH7POtPVbKubk8gXL68IN
+# RTANBgkqhkiG9w0BAQEFAASCAgCz0bDd7TlC2sk3Gl/wbB59XWtpZWyt6hi9Tu/v
+# Sq97cTPLQvPsDbd+yw0F25wAWcEEiXEddu1SCQfEfXUE9R/6iiZTxgURCmzvhIUH
+# MomD0pYOwnMTUatIp2SHl6gvv/x9G6xPsCt8gdrmFRo/vXkFM6Zqf1o3nKLaYhYj
+# 3muOq5tOJmaXjb49LYCFxDtXkDNvnI3HTrulLKZDRMBzIJXNjKAlzb+mEb/nL1oD
+# upbPMViwlffacPiE6ki0jh7tHKv/NKNBAQ42gBlpVPzp4I71JU2i0dSoT/8NMBu4
+# XmaFGhgQ1goX3gwsufOuK1B0kN5Zjsuirk22WT9hh8c0wHq31by6O7bpCuKhFvKU
+# RLgfh93OK5gvAbfmYpDdYEyhyZ26IU3seH4dcnQaC5BzvFLsHJFo2DBMBrb3lVez
+# NGjoFttDeKR2NIzneb0tK3QnZlSLZ+Hk6Tf8s3Kqk4k45frU9+yyhBIyZ0Q91z6L
+# Ay9llW6oAxk7QWVF3t+koz9+BgQGZS4leCq5ebxIcXDZpkuoqwwWHB3tqp9N4U43
+# 5R8tJ5q972DLVyEjSib0BSwlGVplAqFCIzwkgqJZN2w154Kuo3xkUnbqGt2bo8AZ
+# jYgcivxF/vd7q0eh9bnkFxoT06SmVUUc28aEykduSUBgGesfD6mvm9MhqliA30QD
+# SqaQ+A==
 # SIG # End signature block
