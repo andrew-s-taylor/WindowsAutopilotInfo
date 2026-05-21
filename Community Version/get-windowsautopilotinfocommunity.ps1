@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.VERSION 5.0.15
+.VERSION 5.0.16
 .GUID 39efc9c5-7b51-4d1f-b650-0f3818e5327a
 .AUTHOR AndrewTaylor forked from the original by the legend who is Michael Niehaus
 .COMPANYNAME 
@@ -48,6 +48,7 @@ v5.0.12 - WAM fix
 v5.0.13 - WAM Update
 v5.0.14 - Update device fix from Manel Rodero on bsky
 v5.0.15 - Yet another WAM fix
+v5.0.16 - Fixed sync bug and added Graph disconnect
 #>
 
 <#
@@ -120,7 +121,7 @@ Get-CMCollectionMember -CollectionName "All Systems" | .\GetWindowsAutoPilotInfo
 .EXAMPLE
 .\GetWindowsAutoPilotInfo.ps1 -Online
 .NOTES
-Version:        5.0.14
+Version:        5.0.16
 Author:         Andrew Taylor
 WWW:            andrewstaylor.com
 Creation Date:  14/06/2023
@@ -2457,9 +2458,9 @@ End {
             $syncSeconds = [Math]::Ceiling($syncDuration.TotalSeconds)
             Write-Host "All devices synced. Elapsed time to complete sync: $syncSeconds seconds"
 
-            # Cleanup by Thiago Beier https://twitter.com/thiagobeier https://www.linkedin.com/in/tbeier/
+            ##Only do this when updatetag is set
+            if ($UpdateTag) {
             Get-AutopilotImportedDevice | Where-Object { $_.serialnumber -eq "$serial" } | ForEach-Object { Remove-AutopilotImportedDevice -id $_.id }
-            # Invoke AutopilotSync (When windows autopilot devices GroupTag are updated // changing windows autopilot deployment profiles)
             try {
                 Invoke-AutopilotSync -ErrorAction Stop
             }
@@ -2469,7 +2470,7 @@ End {
                 Start-Sleep -Seconds 750
                 Invoke-AutopilotSync
             }
-
+        }
             # Add the device to the specified AAD group
             # Add the device to the specified AAD group
             if ($AddToGroup) {
@@ -2587,6 +2588,13 @@ End {
     ##Re-enable WAM
     setx MSAL_FORCE_WAM 1
 
+    ##Disconnect from Graph (silently error if not connected)
+    try {
+        Disconnect-MgGraph -ErrorAction SilentlyContinue
+    } catch {
+        Write-Host "Not connected to Graph"
+    }
+
 }
 
 
@@ -2598,8 +2606,8 @@ End {
 # SIG # Begin signature block
 # MIIoUAYJKoZIhvcNAQcCoIIoQTCCKD0CAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCArCw9qM5G4f52Y
-# 4Ugr0QA/HK1SKySNsyP1L9e39FRznKCCIU0wggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDyta3BOxY1MU/7
+# Sdkke528EmQ6JZ7srhSHhWAosulDjqCCIU0wggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -2782,34 +2790,34 @@ End {
 # U2lnbmluZyBSU0E0MDk2IFNIQTM4NCAyMDIxIENBMQIQCLGfzbPa87AxVVgIAS8A
 # 6TANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkG
 # CSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEE
-# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAKyzzhrryTyzAS/LdhS3JxCwlM1gJai44r
-# Yw0ETR8zPTANBgkqhkiG9w0BAQEFAASCAgCnu3blUXUC6aEeLs5ZWIojCC3KTSqG
-# ph5DPQQYhS1iFYFtelC+TfERODLjpEkaVs71X/HSi4YWSpyZp8S4/xAwOQoxhvW3
-# HfTl5Ul0S8MGEkWGW2GVc4rcxm0WrHRkLkwQim3taJa5WYVlqg2v930NyVe2cXxd
-# 67Ao9Q3kEu1mh4XmWjFlGIislOF0jBQPryp2hGoyTAqTrOFkn/UwSGIOEdMcnmQH
-# 7OwRYuGlUuG97QoV+r55ZeSVX0SYuGeMEuGWDBtshRqSiTL+mzG0sSfsvyIwDRdD
-# oKE7jOC2ObqLyqs3sXTnySXVE7kQjKINl6MUgFp+h6HCtZVBHPGifX61JbExLnt2
-# tDKLkGjBZcGT84QkyvWVTNV8cJ/7Ld/9gXSXXMvHFB38wHzVEKcCAF/DJABwsQGs
-# BVsxnYLdJuKuL9HjVBGEBzSUFUMJyKsBy4wHNOakV/j+f9DQJHxxA8TwWRZeH5Bc
-# ymPiT/R958rToRz4IK4ukT/IQB19AXOiiMAkh91twwz1Z6Dbrld5gmjuURFXbNSa
-# z7PkPiuGi6nDEBE06pq1mRCZBPhhAGZOmbc52MO+Zr4rx6m0J8CZdx42UoQsSihx
-# A+WPNHR8QtwG0VyPO7Kn1JUtzLILkMVarPDVGgv91ek8yF2Lmi9U2WTMU5jSX66K
-# MOb0ug3kwraAbKGCAyYwggMiBgkqhkiG9w0BCQYxggMTMIIDDwIBATB9MGkxCzAJ
+# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCANhB7HcjO7oQuxbdmJNX2YKvJ1VXytSM8p
+# Kgw9CMnpvzANBgkqhkiG9w0BAQEFAASCAgC48XBbZMLTtzP4heHYSFhQfbJuHJtx
+# jMvWC3bKwhDSFpd9/QZYB4GZtQXevSovkg8ADUOqL/46dmvOEVHi0EpaxCgR+dCL
+# UrCAkKDuprzzpWtL7I69O60a8dV7OD25Xn39q52vYKipz9iMrtZdwuQFjz0AwGX1
+# RiQ2Efs2laJvy0X3NH7lvfAimM+oZmDwVRdtSVjw8eIYfItSS1XWRtKP4U4xzqu4
+# LQjmsysLQQsmvH5WZGONLLuSp3thfd/1ccJ1jc9GLIUU1HHm8HW6BKWb8Yl0xXII
+# IDwTl///3MwP+8lLtsnqmARqbzTiPHwdcM5Xyp5TyefFdUP5yDefVUXR/DYtfquV
+# BFH08B471M3882z5IEL1xxmFvjG87GskckBC/0b3U9ZRNAwMx0KF+fkAyafLJg4t
+# WhQT68UfKkvdVzY+589UK68svA0IpOGA0yvYDOzZzvULaTyDHOIUqoH+pQrORXkx
+# qss1cLy62/n/4ZQnWpoQBIE1z7hgrfblXOdWa277AM/dT2PbarK9hQM/+gXM+n+R
+# y6rxvNT/qfqgkfHH2Nsxnz7CC7aVmEVDyyW4t5gTBbdF74yBffgZCbb1WdrtKVi/
+# 4nCeTER/EOAfk5mmzqnineVMowY4nNCdm+FK+Do9NvWNW+CApR1zovpAjfSdUERB
+# 6eyaPwrqGqht7qGCAyYwggMiBgkqhkiG9w0BCQYxggMTMIIDDwIBATB9MGkxCzAJ
 # BgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjFBMD8GA1UEAxM4RGln
 # aUNlcnQgVHJ1c3RlZCBHNCBUaW1lU3RhbXBpbmcgUlNBNDA5NiBTSEEyNTYgMjAy
 # NSBDQTECEAqA7xhLjfEFgtHEdqeVdGgwDQYJYIZIAWUDBAIBBQCgaTAYBgkqhkiG
-# 9w0BCQMxCwYJKoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNjA1MDQxODM2NDVa
-# MC8GCSqGSIb3DQEJBDEiBCAbfwGgigifHMJh1clSo6YLe+fyb98g+szg/8VNo3cl
-# xzANBgkqhkiG9w0BAQEFAASCAgBDe5W26dR4nRj9KDHbpd7hM5iSUPFSWxWI/2BK
-# G6mMS9HKjkzPb36XzRFMXzkET4ZVcXEqU1cZJ6rS0frfevRkmpNDeyCkwLExNIBn
-# Hw2TfKVaCZ+PdhMI22NeUTZ65wtljYw/snVA4ydU6C4NwhKY7XSd7gycUHOoklKw
-# /s+6xrGjaIf/KvqCHei1gtNUTGGzqSNOO8v65Vu2+KpKm0EO286BnK9CbExemuxf
-# 4rizE/KXMP/GRAhLFrN+4CvTmhKonJI8cCjfJOF4ik5jBSW5+YkfRfaVvtSUROpJ
-# KQpXg+8kI1lP7f25ojzAtNPIauA/h+p4bMyz5TytG4GWKwph8Yo5+5M0gPSy3So6
-# 4mlEBmFqZ6btfpGh3IfJhng76MPeaj0a/B3tJ+2t6b0Vkx8aISU6l725xCAsVJ7l
-# CLikOQUbSHYFrKcoy7OIgs/jPYTxVNlLAGyBXzbXFmxFKcmmah5OuPHEf8TEx+z5
-# vdUz66ozzcBRokcQCaxhC5LDNKjiQB+EmEVztxAskKNgTL7K366JFsibLugFGUVA
-# H6Km7fuXiYL4+LJxucfBrdc9ADWJwFTzh0hOBSElWFINXe3CYI6lKcGXdFe+/HOj
-# mss1FviI5QEfg9k5EHBhIpgdmSHKGxcvdGXI0XyPm2EPRtduujcgTue3lCjLon42
-# IXkY8Q==
+# 9w0BCQMxCwYJKoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNjA1MjExMjMzMTFa
+# MC8GCSqGSIb3DQEJBDEiBCB7uu3+JzFj/P7cGm8OxzDO5JLeX7YLNUsX4R4YbP5O
+# RTANBgkqhkiG9w0BAQEFAASCAgBBpiLNV8cq/kg7EoNKxkB40FOxxjmm7jFb+YcX
+# vDLQiaP5MI51W1uM5h/CITj845W9FZz10DkIIen4zJ5m+G71jhK0JopdsDs3DbtM
+# it6uIZ7ocOBvy4HB6DogZawDDFQGOb3M920Ad2Te2kUfbH+Ny2nUuFhtl5tp7B0k
+# D+IPqXKPN4lS3WWPppJ7VHn185KzNdJWML1p1p218TlgOViQ4mUCDErniz0a8vdZ
+# UXKE6fwYdfJZV+4LGBY7NI62nIjr9bXOd0cZ8GtXM/Sezw9MARiXF1VMHxFeZnsV
+# mPASEnJVlIkk7xlL0QpZea8ertpjOIk5aS1ZJI0iN1ycy0wQAt4L+hHqJ+D/KP9a
+# a8rPvsmDlZgi2iYJ7ycV4j1ENRsJl1rMMgV22aeagc/cRWY2OrOB1IJ8iV3mOtsR
+# Lrkln2fze3oTzpVQINmUFyNf5OJjAwlPRmUBYlgR+gkzdreKBcx5PUWee3oPa6pj
+# FBZF4BRXIzwf3Y3bEM2b0N1PteICj+AUOLf8muGcwHB2vWc0YPq7LCroVrfGZQZb
+# XHCeWWlKJQ6roRqU8mPYQ1pOfOx8jie2gfFhwr1v6PhA656twk+5DlFvjcc3TsAf
+# +D/7XEkiQMrubwMQz/wlT4vUwJMR0JnfgRXNEJGgKtbxo5LFoRENvEp+GIqTWXxs
+# owaXbg==
 # SIG # End signature block
